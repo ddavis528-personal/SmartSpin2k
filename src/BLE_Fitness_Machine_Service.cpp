@@ -115,10 +115,10 @@ void BLE_Fitness_Machine_Service::update() {
     // Use reported resistance value
     resistanceValue = rtConfig->resistance.getValue();
   } else {
-    // Calculate resistance from stepper position for bikes that don't report resistance
+    // Calculate resistance from stepper position for bikes that don't report resistance.
+    // Do not write back to rtConfig to avoid overwriting the simulate flag or timestamp,
+    // which would interfere with detection of real resistance data arriving later.
     resistanceValue = this->calculateResistanceFromPosition();
-    rtConfig->resistance.setValue(resistanceValue);
-    rtConfig->resistance.setSimulate(true); // Mark as simulated
   }
   ftmsIndoorBikeData.push_back(static_cast<uint8_t>(resistanceValue & 0xff));
   ftmsIndoorBikeData.push_back(static_cast<uint8_t>(resistanceValue >> 8));
