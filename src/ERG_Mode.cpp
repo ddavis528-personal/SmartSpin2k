@@ -143,8 +143,8 @@ void ErgMode::runERG() {
       // So the user knows pTab4PWR is enabled, provide some cadence feedback even if the value returned by the table is 0.
       int minimumPower = rtConfig->cad.getValue() / 2;  // 50% of the cadence value
       _smoothPWR       = _smoothPWR < minimumPower ? round((minimumPower + previousPower) / 2.0f) : _smoothPWR;
-      rtConfig->watts.setValue(_smoothPWR);
-      previousPower = (rtConfig->watts.getValue() + previousPower) / 2;
+      rtConfig->watts.setValue(round(_smoothPWR * userConfig->getPowerCorrectionFactor()));
+      previousPower = (_smoothPWR + previousPower) / 2;
     }
   }
 }
