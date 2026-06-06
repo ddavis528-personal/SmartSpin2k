@@ -141,6 +141,10 @@ void BLE_ss2kCustomCharacteristic::process(std::string rxValue) {
   if (NimBLEDevice::getServer()->getServiceByUUID(SMARTSPIN2K_SERVICE_UUID) == nullptr) {
     return;
   }
+  // Minimum valid packet is opcode + variable reference = 2 bytes.
+  if (rxValue.length() < 2) {
+    return;
+  }
   NimBLECharacteristic *pCharacteristic = NimBLEDevice::getServer()->getServiceByUUID(SMARTSPIN2K_SERVICE_UUID)->getCharacteristic(SMARTSPIN2K_CHARACTERISTIC_UUID);
   uint8_t *pData                        = reinterpret_cast<uint8_t *>(&rxValue[0]);
 
@@ -186,7 +190,7 @@ void BLE_ss2kCustomCharacteristic::process(std::string rxValue) {
         returnValue[3] = (uint8_t)(inc >> 8);
         returnLength += 2;
       }
-      if (rxValue[0] == cc_write) {
+      if (rxValue[0] == cc_write && rxValue.length() >= 4) {
         returnValue[0] = cc_success;
         rtConfig->setTargetIncline(bytes_to_u16(rxValue[3], rxValue[2]) / 10);
         LOG_BUF_APPEND("(%f)", rtConfig->getTargetIncline());
@@ -201,7 +205,7 @@ void BLE_ss2kCustomCharacteristic::process(std::string rxValue) {
         returnValue[3] = (uint8_t)(rtConfig->watts.getValue() >> 8);
         returnLength += 2;
       }
-      if (rxValue[0] == cc_write) {
+      if (rxValue[0] == cc_write && rxValue.length() >= 4) {
         returnValue[0] = cc_success;
         rtConfig->watts.setValue(bytes_to_u16(rxValue[3], rxValue[2]));
         LOG_BUF_APPEND("(%d)", rtConfig->watts.getValue());
@@ -216,7 +220,7 @@ void BLE_ss2kCustomCharacteristic::process(std::string rxValue) {
         returnValue[3] = (uint8_t)(rtConfig->hr.getValue() >> 8);
         returnLength += 2;
       }
-      if (rxValue[0] == cc_write) {
+      if (rxValue[0] == cc_write && rxValue.length() >= 4) {
         returnValue[0] = cc_success;
         rtConfig->hr.setValue(bytes_to_u16(rxValue[3], rxValue[2]));
         LOG_BUF_APPEND("(%d)", rtConfig->hr.getValue());
@@ -231,7 +235,7 @@ void BLE_ss2kCustomCharacteristic::process(std::string rxValue) {
         returnValue[3] = (uint8_t)(rtConfig->cad.getValue() >> 8);
         returnLength += 2;
       }
-      if (rxValue[0] == cc_write) {
+      if (rxValue[0] == cc_write && rxValue.length() >= 4) {
         returnValue[0] = cc_success;
         rtConfig->cad.setValue(bytes_to_u16(rxValue[3], rxValue[2]));
         LOG_BUF_APPEND("(%d)", rtConfig->cad.getValue());
@@ -247,7 +251,7 @@ void BLE_ss2kCustomCharacteristic::process(std::string rxValue) {
         returnValue[3] = (uint8_t)(spd >> 8);
         returnLength += 2;
       }
-      if (rxValue[0] == cc_write) {
+      if (rxValue[0] == cc_write && rxValue.length() >= 4) {
         returnValue[0] = cc_success;
         rtConfig->setSimulatedSpeed(bytes_to_u16(rxValue[3], rxValue[2]) / 10);
         LOG_BUF_APPEND("(%d)", rtConfig->getSimulatedSpeed());
@@ -276,7 +280,7 @@ void BLE_ss2kCustomCharacteristic::process(std::string rxValue) {
         returnValue[3] = (uint8_t)(userConfig->getShiftStep() >> 8);
         returnLength += 2;
       }
-      if (rxValue[0] == cc_write) {
+      if (rxValue[0] == cc_write && rxValue.length() >= 4) {
         returnValue[0] = cc_success;
         userConfig->setShiftStep(bytes_to_u16(rxValue[3], rxValue[2]));
         LOG_BUF_APPEND("(%d)", userConfig->getShiftStep());
@@ -291,7 +295,7 @@ void BLE_ss2kCustomCharacteristic::process(std::string rxValue) {
         returnValue[3] = (uint8_t)(userConfig->getStepperPower() >> 8);
         returnLength += 2;
       }
-      if (rxValue[0] == cc_write) {
+      if (rxValue[0] == cc_write && rxValue.length() >= 4) {
         returnValue[0] = cc_success;
         userConfig->setStepperPower(bytes_to_u16(rxValue[3], rxValue[2]));
         ss2k->updateStepperPower();
@@ -323,7 +327,7 @@ void BLE_ss2kCustomCharacteristic::process(std::string rxValue) {
         returnValue[3] = (uint8_t)(inc >> 8);
         returnLength += 2;
       }
-      if (rxValue[0] == cc_write) {
+      if (rxValue[0] == cc_write && rxValue.length() >= 4) {
         returnValue[0] = cc_success;
         userConfig->setInclineMultiplier((bytes_to_u16(rxValue[3], rxValue[2])) / 10.0);
         LOG_BUF_APPEND("(%f)", userConfig->getInclineMultiplier());
@@ -339,7 +343,7 @@ void BLE_ss2kCustomCharacteristic::process(std::string rxValue) {
         returnValue[3] = (uint8_t)(pcf >> 8);
         returnLength += 2;
       }
-      if (rxValue[0] == cc_write) {
+      if (rxValue[0] == cc_write && rxValue.length() >= 4) {
         returnValue[0] = cc_success;
         userConfig->setPowerCorrectionFactor((bytes_to_u16(rxValue[3], rxValue[2])) / 10.0);
         LOG_BUF_APPEND("(%f)", userConfig->getPowerCorrectionFactor());
@@ -396,7 +400,7 @@ void BLE_ss2kCustomCharacteristic::process(std::string rxValue) {
         returnValue[3] = (uint8_t)(rtConfig->getFTMSMode() >> 8);
         returnLength += 2;
       }
-      if (rxValue[0] == cc_write) {
+      if (rxValue[0] == cc_write && rxValue.length() >= 4) {
         returnValue[0] = cc_success;
         rtConfig->setFTMSMode(bytes_to_u16(rxValue[3], rxValue[2]));
         LOG_BUF_APPEND("(%hhu)", rtConfig->getFTMSMode());
@@ -495,7 +499,7 @@ void BLE_ss2kCustomCharacteristic::process(std::string rxValue) {
         returnValue[3] = (uint8_t)(rtConfig->getShifterPosition() >> 8);
         returnLength += 2;
       }
-      if (rxValue[0] == cc_write) {
+      if (rxValue[0] == cc_write && rxValue.length() >= 4) {
         returnValue[0] = cc_success;
         rtConfig->setShifterPosition(bytes_to_u16(rxValue[3], rxValue[2]));
         LOG_BUF_APPEND("(%d)", rtConfig->getShifterPosition());
@@ -525,7 +529,7 @@ void BLE_ss2kCustomCharacteristic::process(std::string rxValue) {
         returnValue[5] = (uint8_t)(ss2k->getTargetPosition() >> 24);
         returnLength += 4;
       }
-      if (rxValue[0] == cc_write) {
+      if (rxValue[0] == cc_write && rxValue.length() >= 6) {
         returnValue[0] = cc_success;
         ss2k->setTargetPosition(int32_t((uint8_t)(rxValue[2]) << 0 | (uint8_t)(rxValue[3]) << 8 | (uint8_t)(rxValue[4]) << 16 | (uint8_t)(rxValue[5]) << 24));
         LOG_BUF_APPEND(" (%f)", ss2k->getTargetPosition());
@@ -584,7 +588,7 @@ void BLE_ss2kCustomCharacteristic::process(std::string rxValue) {
         returnValue[3] = (uint8_t)(userConfig->getStepperSpeed() >> 8);
         returnLength += 2;
       }
-      if (rxValue[0] == cc_write) {
+      if (rxValue[0] == cc_write && rxValue.length() >= 4) {
         returnValue[0] = cc_success;
         userConfig->setStepperSpeed(bytes_to_u16(rxValue[3], rxValue[2]));
         LOG_BUF_APPEND("(%d)", userConfig->getStepperSpeed());
@@ -604,7 +608,7 @@ void BLE_ss2kCustomCharacteristic::process(std::string rxValue) {
         returnValue[3] = (uint8_t)(pcf >> 8);
         returnLength += 2;
       }
-      if (rxValue[0] == cc_write) {
+      if (rxValue[0] == cc_write && rxValue.length() >= 4) {
         returnValue[0] = cc_success;
         userConfig->setERGSensitivity((bytes_to_u16(rxValue[3], rxValue[2])) / 10.0);
         LOG_BUF_APPEND("(%f)", userConfig->getERGSensitivity());
@@ -633,7 +637,7 @@ void BLE_ss2kCustomCharacteristic::process(std::string rxValue) {
         returnValue[3] = (uint8_t)(userConfig->getMinWatts() >> 8);
         returnLength += 2;
       }
-      if (rxValue[0] == cc_write) {
+      if (rxValue[0] == cc_write && rxValue.length() >= 4) {
         returnValue[0] = cc_success;
         userConfig->setMinWatts(bytes_to_u16(rxValue[3], rxValue[2]));
         LOG_BUF_APPEND("(%d)", userConfig->getMinWatts());
@@ -650,7 +654,7 @@ void BLE_ss2kCustomCharacteristic::process(std::string rxValue) {
         returnValue[3] = (uint8_t)(userConfig->getMaxWatts() >> 8);
         returnLength += 2;
       }
-      if (rxValue[0] == cc_write) {
+      if (rxValue[0] == cc_write && rxValue.length() >= 4) {
         returnValue[0] = cc_success;
         userConfig->setMaxWatts(bytes_to_u16(rxValue[3], rxValue[2]));
         LOG_BUF_APPEND("(%d)", userConfig->getMaxWatts());
@@ -704,7 +708,8 @@ void BLE_ss2kCustomCharacteristic::process(std::string rxValue) {
       }
       if (rxValue[0] == cc_write) {
         returnValue[0] = cc_success;
-        if (rxValue[2] >= 0 && rxValue[2] < POWERTABLE_CAD_SIZE) {
+        const size_t requiredLen = 3 + (size_t)POWERTABLE_WATT_SIZE * 2;
+        if (rxValue.length() >= requiredLen && rxValue[2] >= 0 && rxValue[2] < POWERTABLE_CAD_SIZE) {
           for (int i = 0; i < POWERTABLE_WATT_SIZE; i++) {
             powerTable->ptData.tableRow[rxValue[2]].tableEntry[i].targetPosition = (int16_t((uint8_t)(rxValue[i * 2 + 3]) << 0 | (uint8_t)(rxValue[i * 2 + 4]) << 8));
             // Ensure each entry has a valid reading count to be considered during loading
@@ -731,7 +736,7 @@ void BLE_ss2kCustomCharacteristic::process(std::string rxValue) {
         returnValue[3] = (uint8_t)(rtConfig->watts.getTarget() >> 8);
         returnLength += 2;
       }
-      if (rxValue[0] == cc_write) {
+      if (rxValue[0] == cc_write && rxValue.length() >= 4) {
         returnValue[0] = cc_success;
         rtConfig->watts.setValue(bytes_to_u16(rxValue[3], rxValue[2]));
         LOG_BUF_APPEND("(%d)", rtConfig->watts.getTarget());
@@ -760,7 +765,7 @@ void BLE_ss2kCustomCharacteristic::process(std::string rxValue) {
         returnValue[5] = (uint8_t)(userConfig->getHMin() >> 24);
         returnLength += 4;
       }
-      if (rxValue[0] == cc_write) {
+      if (rxValue[0] == cc_write && rxValue.length() >= 6) {
         returnValue[0] = cc_success;
         int32_t hMin = int32_t((uint8_t)(rxValue[2]) << 0 | (uint8_t)(rxValue[3]) << 8 | (uint8_t)(rxValue[4]) << 16 | (uint8_t)(rxValue[5]) << 24);
         userConfig->setHMin(hMin);
@@ -779,7 +784,7 @@ void BLE_ss2kCustomCharacteristic::process(std::string rxValue) {
         returnValue[5] = (uint8_t)(userConfig->getHMax() >> 24);
         returnLength += 4;
       }
-      if (rxValue[0] == cc_write) {
+      if (rxValue[0] == cc_write && rxValue.length() >= 6) {
         returnValue[0] = cc_success;
         int32_t hMax   = int32_t((uint8_t)(rxValue[2]) << 0 | (uint8_t)(rxValue[3]) << 8 | (uint8_t)(rxValue[4]) << 16 | (uint8_t)(rxValue[5]) << 24);
         Serial.printf("hMax: %d\n <--------------------------------------------", hMax);
@@ -797,7 +802,7 @@ void BLE_ss2kCustomCharacteristic::process(std::string rxValue) {
         returnValue[3] = (uint8_t)(userConfig->getHomingSensitivity() >> 8);
         returnLength += 2;
       }
-      if (rxValue[0] == cc_write) {
+      if (rxValue[0] == cc_write && rxValue.length() >= 4) {
         returnValue[0] = cc_success;
         userConfig->setHomingSensitivity(bytes_to_u16(rxValue[3], rxValue[2]));
         LOG_BUF_APPEND("(%d)", userConfig->getHomingSensitivity());

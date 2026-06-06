@@ -186,7 +186,10 @@ void MyCharacteristicCallbacks::onRead(NimBLECharacteristic* pCharacteristic, Ni
 
 void MyCharacteristicCallbacks::onWrite(NimBLECharacteristic* pCharacteristic, NimBLEConnInfo& connInfo) {
   if (pCharacteristic->getUUID() == FITNESSMACHINECONTROLPOINT_UUID) {
-    spinBLEServer.writeCache.push(pCharacteristic->getValue());
+    if (xSemaphoreTake(spinBLEServer.writeCacheMutex, pdMS_TO_TICKS(5)) == pdTRUE) {
+      spinBLEServer.writeCache.push(pCharacteristic->getValue());
+      xSemaphoreGive(spinBLEServer.writeCacheMutex);
+    }
   } else {
     SS2K_LOG(BLE_SERVER_LOG_TAG, "Write to %s is not supported", pCharacteristic->getUUID().toString().c_str());
   }

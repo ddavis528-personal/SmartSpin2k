@@ -59,7 +59,10 @@ void BLE_Fitness_Machine_Service::setupService(NimBLEServer *pServer, MyCharacte
   // Register with DirCon for service discovery and write handling
   DirConManager::registerService(pFitnessMachineService->getUUID(), [](NimBLECharacteristic *characteristic, const uint8_t *data, size_t length, DirConWriteResult *result) -> bool {
     if (characteristic->getUUID().equals(FITNESSMACHINECONTROLPOINT_UUID)) {
-      spinBLEServer.writeCache.push(characteristic->getValue());
+      if (xSemaphoreTake(spinBLEServer.writeCacheMutex, pdMS_TO_TICKS(5)) == pdTRUE) {
+        spinBLEServer.writeCache.push(characteristic->getValue());
+        xSemaphoreGive(spinBLEServer.writeCacheMutex);
+      }
       fitnessMachineService.processFTMSWrite();
       result->updateResponseData = true;
       return true;
@@ -150,9 +153,18 @@ void BLE_Fitness_Machine_Service::update() {
 
 // The things that happen when we receive a FitnessMachineControlPointProcedure from a Client.
 void BLE_Fitness_Machine_Service::processFTMSWrite() {
-  while (!spinBLEServer.writeCache.empty()) {
-    std::string rxValue = spinBLEServer.writeCache.front();
-    spinBLEServer.writeCache.pop();
+  while (true) {
+    std::string rxValue;
+    {
+      if (xSemaphoreTake(spinBLEServer.writeCacheMutex, pdMS_TO_TICKS(5)) != pdTRUE) break;
+      if (spinBLEServer.writeCache.empty()) {
+        xSemaphoreGive(spinBLEServer.writeCacheMutex);
+        break;
+      }
+      rxValue = spinBLEServer.writeCache.front();
+      spinBLEServer.writeCache.pop();
+      xSemaphoreGive(spinBLEServer.writeCacheMutex);
+    }
     if (rxValue == "") {
       return;
     }
@@ -162,9 +174,10 @@ void BLE_Fitness_Machine_Service::processFTMSWrite() {
     std::vector<uint8_t> ftmsTrainingStatus = {0x00, FitnessMachineTrainingStatus::Other};
 
     if (rxValue.length() >= 1) {
-      uint8_t *pData            = reinterpret_cast<uint8_t *>(&rxValue[0]);
-      int length                = rxValue.length();
-      const int kLogBufCapacity = (rxValue.length() * 2) + 60;  // largest comment is 48 VV
+      uint8_t *pData = reinterpret_cast<uint8_t *>(&rxValue[0]);
+      int length     = rxValue.length();
+      // Fixed-size log buffer: 2 hex chars per byte * 25 bytes max + 60 chars for the comment = 110, rounded up.
+      const int kLogBufCapacity = 200;
       char logBuf[kLogBufCapacity];
       int logBufLength = ss2k_log_hex_to_buffer(pData, length, logBuf, 0, kLogBufCapacity);
       int port         = 0;
@@ -187,7 +200,8 @@ void BLE_Fitness_Machine_Service::processFTMSWrite() {
         case FitnessMachineControlPointProcedure::SetTargetInclination: {
           rtConfig->setFTMSMode((uint8_t)rxValue[0]);
           returnValue[2] = FitnessMachineControlPointResultCode::Success;
-          int16_t rawInclineTenthsPercent = (int16_t)((rxValue[2] << 8) | rxValue[1]); // signed 0.1% units
+          // Use unsigned bytes before casting to int16 to avoid sign-extension of MSB.
+          int16_t rawInclineTenthsPercent = (int16_t)(((uint8_t)rxValue[2] << 8) | (uint8_t)rxValue[1]); // signed 0.1% units
           port                            = static_cast<int>(rawInclineTenthsPercent) * 10; // convert to 0.01% units
           rtConfig->setTargetIncline(port);
           logBufLength += snprintf(logBuf + logBufLength,
@@ -200,7 +214,7 @@ void BLE_Fitness_Machine_Service::processFTMSWrite() {
 
         case FitnessMachineControlPointProcedure::SetTargetResistanceLevel: {
           rtConfig->setFTMSMode((uint8_t)rxValue[0]);
-          int16_t requestedResistance = (int16_t)((rxValue[2] << 8) | rxValue[1]);
+          int16_t requestedResistance = (int16_t)(((uint8_t)rxValue[2] << 8) | (uint8_t)rxValue[1]);
 
           if (requestedResistance >= rtConfig->getMinResistance() && requestedResistance <= rtConfig->getMaxResistance()) {
             rtConfig->resistance.setTarget(requestedResistance);

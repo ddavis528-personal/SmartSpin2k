@@ -40,8 +40,8 @@ struct BLEServiceInfo {
 
 namespace BLEServices {
 const std::vector<BLEServiceInfo> SUPPORTED_SERVICES = {{CYCLINGPOWERSERVICE_UUID, CYCLINGPOWERMEASUREMENT_UUID, "Cycling Power Service"},
-                                                        {CSCSERVICE_UUID, CSCMEASUREMENT_UUID, "Cycling Speed And Cadence Service"},
                                                         {HEARTSERVICE_UUID, HEARTCHARACTERISTIC_UUID, "Heart Rate Service"},
+                                                        {CSCSERVICE_UUID, CSCMEASUREMENT_UUID, "Cycling Speed And Cadence Service"},
                                                         {ECHELON_DEVICE_UUID, ECHELON_SERVICE_UUID, "Echelon Device"},  // Two lines for Echelon
                                                         {ECHELON_SERVICE_UUID, ECHELON_DATA_UUID, "Echelon Service"},   // Because one is for search, the other for data
                                                         {FITNESSMACHINESERVICE_UUID, FITNESSMACHINEINDOORBIKEDATA_UUID, "Fitness Machine Service"},
@@ -61,7 +61,8 @@ using BLEServices::SUPPORTED_SERVICES;
 // macros to convert different types of bytes into int The naming here sucks and
 // should be fixed.
 #define bytes_to_s16(MSB, LSB) (((signed int)((signed char)MSB))) << 8 | (((signed char)LSB))
-#define bytes_to_u16(MSB, LSB) (((signed int)((signed char)MSB))) << 8 | (((unsigned char)LSB))
+// bytes_to_u16: both bytes treated as unsigned so MSB ≥ 0x80 is never sign-extended.
+#define bytes_to_u16(MSB, LSB) (((int)((unsigned char)MSB))) << 8 | (((unsigned char)LSB))
 #define bytes_to_int(MSB, LSB) ((static_cast<int>((unsigned char)MSB))) << 8 | (((unsigned char)LSB))
 // Potentially, something like this is a better way of doing this ^^
 
@@ -98,8 +99,10 @@ class SpinBLEServer {
   double calculateSpeed();
   void update();
   int connectedClientCount();
-  // Queue to store writes to any of the callbacks to the server
+  // Queue to store writes to any of the callbacks to the server.
+  // Protected by writeCacheMutex – always hold the mutex when accessing.
   std::queue<std::string> writeCache;
+  SemaphoreHandle_t writeCacheMutex = xSemaphoreCreateMutex();
 };
 
 class MyCharacteristicCallbacks : public NimBLECharacteristicCallbacks {
