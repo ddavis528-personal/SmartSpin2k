@@ -424,7 +424,10 @@ void ScanCallbacks::onResult(const NimBLEAdvertisedDevice* advertisedDevice) {
         String deviceKey           = "device " + String(devices.size());
         devices[deviceKey]["name"] = aDevName;
         // Workaround for IC4 not advertising FTMS as the first service.
-        if (advertisedDevice->isAdvertisingService(FITNESSMACHINESERVICE_UUID)) {
+        // Skip this override for HRMs — a device advertising heart rate must
+        // appear in the HRM dropdown even if it also happens to advertise FTMS.
+        if (serviceInfo->serviceUUID != HEARTSERVICE_UUID &&
+            advertisedDevice->isAdvertisingService(FITNESSMACHINESERVICE_UUID)) {
           devices[deviceKey]["UUID"] = FITNESSMACHINESERVICE_UUID.toString();
         } else {
           devices[deviceKey]["UUID"] = serviceInfo->serviceUUID.toString();
