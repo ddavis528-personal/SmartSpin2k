@@ -22,7 +22,6 @@ static unsigned long ergTimer = millis() + ERG_MODE_DELAY;
 static bool isDelayed         = false;
 
 void ErgMode::runERG() {
-  static ErgMode ergMode;
   static PowerBuffer powerBuffer;
   static bool hasConnectedPowerMeter = false;
   static bool simulationRunning      = false;
@@ -97,7 +96,7 @@ void ErgMode::runERG() {
 
       // compute ERG
       if ((rtConfig->getFTMSMode() == FitnessMachineControlPointProcedure::SetTargetPower) && (hasConnectedPowerMeter || simulationRunning)) {
-        ergMode.computeErg();
+        this->computeErg();
       }
 
       // Set Min and Max Stepper positions
@@ -311,5 +310,5 @@ bool ErgMode::_userIsSpinning(int cadence, float incline) {
 }
 
 void ErgMode::_writeLog(float currentIncline, float newIncline, int currentSetPoint, int newSetPoint, int currentWatts, int newWatts, int currentCadence, int newCadence) {
-  SS2K_LOGW(ERG_MODE_LOG_CSV_TAG, "%d;%.2f;%.2f;%d;%d;%d;%d;%d", currentIncline, newIncline, currentSetPoint, newSetPoint, currentWatts, newWatts, currentCadence, newCadence);
+  SS2K_LOGW(ERG_MODE_LOG_CSV_TAG, "%.2f;%.2f;%d;%d;%d;%d;%d;%d", currentIncline, newIncline, currentSetPoint, newSetPoint, currentWatts, newWatts, currentCadence, newCadence);
 }
