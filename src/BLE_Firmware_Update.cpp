@@ -151,19 +151,19 @@ class otaCallback : public BLECharacteristicCallbacks {
         //-----------------------------------------------------------------
         SS2K_LOG(BLE_OTA_LOG_TAG, "Set Boot partition");
         if (ESP_OK == esp_ota_set_boot_partition(update_partition)) {
-          esp_ota_end(otaHandler);
+          // esp_ota_end() was already called above; do NOT call it again.
           downloadFlag = false;
           SS2K_LOG(BLE_OTA_LOG_TAG, "Restarting...");
           ss2k->rebootFlag = true;
           return;
         } else {
           //------------------------------------------------------------
-          // Something went wrong, the upload was not successful
+          // Something went wrong, the upload was not successful.
+          // esp_ota_end() was already called above; do NOT call it again.
           //------------------------------------------------------------
           SS2K_LOG(BLE_OTA_LOG_TAG, "Upload Error");
           pTxCharacteristic->notify(0x04, sizeof(uint8_t));
           downloadFlag = false;
-          esp_ota_end(otaHandler);
           ss2k->rebootFlag = true;
           return;
         }

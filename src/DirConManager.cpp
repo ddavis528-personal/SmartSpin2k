@@ -130,7 +130,7 @@ void DirConManager::updateStatusMessage() {
 void DirConManager::setupMDNS() {
   // Static buffers for strings to avoid repeated allocations
   static char macAddress[18];    // MAC format: 11:22:33:44:55:66\0
-  static char serialNumber[12];  // SS2K-112233445566\0
+  static char serialNumber[13];  // 12 hex chars + null terminator
 
   // Get device MAC address using existing buffer
   strcpy(macAddress, WiFi.macAddress().c_str());
@@ -141,8 +141,14 @@ void DirConManager::setupMDNS() {
     }
   }
 
-  // Create a unique serial number (using MAC address), and remove the dashes and change the letters to decimal numbers.
-  snprintf(serialNumber, sizeof(serialNumber), "%02X%02X%02X%02X%02X%02X", macAddress[0], macAddress[1], macAddress[3], macAddress[4], macAddress[6], macAddress[7]);
+  // Create a unique serial number from the MAC address string "AA-BB-CC-DD-EE-FF".
+  // Parse each hex byte pair (at offsets 0,3,6,9,12,15) rather than using raw char values.
+  uint8_t mac[6];
+  for (int i = 0; i < 6; i++) {
+    char hex[3] = {macAddress[i * 3], macAddress[i * 3 + 1], '\0'};
+    mac[i] = (uint8_t)strtol(hex, nullptr, 16);
+  }
+  snprintf(serialNumber, sizeof(serialNumber), "%02X%02X%02X%02X%02X%02X", mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
 
   // Add DirCon service to MDNS
   SS2K_LOG(DIRCON_LOG_TAG, "Adding DirCon MDNS service: %s.%s on port %d", DIRCON_MDNS_SERVICE_NAME, DIRCON_MDNS_SERVICE_PROTOCOL, DIRCON_TCP_PORT);

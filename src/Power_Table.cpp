@@ -86,8 +86,8 @@ void PowerTable::processPowerValue(PowerBuffer& powerBuffer, int cadence, Measur
 void PowerTable::setStepperMinMax() {
   int32_t _return = RETURN_ERROR;
 
-  // if Homing was preformed, skip estimating min_max
-  if (rtConfig->getHomed() && (userConfig->getHMin() != INT32_MIN) || (userConfig->getHMax() != INT32_MIN)) {
+  // if Homing was performed, skip estimating min_max
+  if (rtConfig->getHomed() && (userConfig->getHMin() != INT32_MIN || userConfig->getHMax() != INT32_MIN)) {
     SS2K_LOG(POWERTABLE_LOG_TAG, "Using detected travel limits during homing");
     rtConfig->setMinStep(userConfig->getHMin());
     rtConfig->setMaxStep(userConfig->getHMax());
@@ -350,9 +350,10 @@ bool PowerTable::_save() {
     }
     Serial.printf("\n");
   }
-  // Close the file
+  // Capture size before closing the file handle.
+  size_t savedSize = file.size();
   file.close();
-  Serial.printf("file Size %lu\n", file.size());
+  Serial.printf("file Size %lu\n", savedSize);
   lastSaveTime                    = millis();
   this->_hasBeenLoadedThisSession = true;
   SS2K_LOG(POWERTABLE_LOG_TAG, "Power table saved successfully with %d readings", validReadings);
@@ -386,20 +387,23 @@ bool PowerTable::reset() {
 void PowerTable::toLog() {
 #ifdef DEBUG_POWERTABLE
   int maxLen = 4;
-  // Find the longest integer to dynamically size the table
+  // Find the longest integer to size the column width (int16_t max is 6 chars "-32768").
   for (int i = 0; i < POWERTABLE_CAD_SIZE; i++) {
     for (int j = 0; j < POWERTABLE_WATT_SIZE; j++) {
       if (this->ptData.tableRow[i].tableEntry[j].targetPosition == INT16_MIN) {
         continue;
       }
-      int len = snprintf(nullptr, 0, "%d", this->ptData.tableRow[i].tableEntry[j].targetPosition);
+      char tmp[8];
+      int len = snprintf(tmp, sizeof(tmp), "%d", this->ptData.tableRow[i].tableEntry[j].targetPosition);
       if (maxLen < len) {
         maxLen = len;
       }
     }
   }
 
-  char buffer[maxLen + 2];  // Buffer for formatting
+  // Fixed-size buffer: int16_t fits in 7 chars ("-32768\0"), +1 for safety.
+  char buffer[8];
+  if (maxLen > (int)(sizeof(buffer) - 2)) maxLen = (int)(sizeof(buffer) - 2);
   // Print header row
   String headerRow = "CAD\\W ";
   for (int j = 0; j < POWERTABLE_WATT_SIZE; j++) {

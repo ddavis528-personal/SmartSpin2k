@@ -50,7 +50,7 @@ class SS2K {
   bool resetPowerTableFlag = false;
   bool isUpdating          = false;
 
-  static void ARDUINO_ISR_ATTR maintenanceLoop(void *pvParameters);
+  static void maintenanceLoop(void *pvParameters);
   static void ARDUINO_ISR_ATTR handleUpShift();
   static void ARDUINO_ISR_ATTR handleDownShift();
   static void moveStepper();

@@ -89,13 +89,9 @@ void BLECommunications() {
                 if (incomingNotifyData.length == 0) {
                   break;
                 }
+                // Use the fixed-size buffer directly – no VLA needed.
                 size_t length = incomingNotifyData.length;
-                uint8_t pData[length];
-
-                for (size_t i = 0; i < length; i++) {
-                  pData[i] = incomingNotifyData.data[i];
-                }
-                collectAndSet(incomingNotifyData.charUUID, incomingNotifyData.serviceUUID, _BLEd.uniqueName, pData, length);
+                collectAndSet(incomingNotifyData.charUUID, incomingNotifyData.serviceUUID, _BLEd.uniqueName, incomingNotifyData.data, length);
               }
             } else if (!pClient->isConnected()) {  // This is a workaround for a bug in NimBLE where onDisconnect() is not called automatically.
               MyClientCallback workaroundCallback;

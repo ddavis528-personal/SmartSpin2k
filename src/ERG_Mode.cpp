@@ -279,7 +279,7 @@ int32_t ErgMode::_inSetpointState() {
   }
 
   // Cap the change to no more than we can move until the next reading
-  int maxChange = round((long)((userConfig->getStepperSpeed() * ERG_MODE_DELAY)) / 1000.0f);  // max change based on stepper speed and delay
+  int maxChange = round((long)userConfig->getStepperSpeed() * ERG_MODE_DELAY / 1000.0f);  // max change based on stepper speed and delay
   if (PID_output > maxChange) {
     PID_output = maxChange;
   } else if (PID_output < -maxChange) {

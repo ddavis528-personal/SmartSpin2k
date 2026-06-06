@@ -207,6 +207,9 @@ static HomingSgBaseline getHomingSgBaseline() {
     if (samples[i] > trimmedMax) trimmedMax = samples[i];
   }
 
+  if (trimmedCount <= 0) {
+    return {0, userConfig->getHomingSensitivity()};
+  }
   int threshold           = round(trimmedTotal / (float)trimmedCount);
   int normalLowDrop       = threshold - trimmedMin;
   int measuredSensitivity = max(userConfig->getHomingSensitivity(), normalLowDrop + max(userConfig->getHomingSensitivity() / 2, HOMING_SG_MIN_SAMPLE_MARGIN));
