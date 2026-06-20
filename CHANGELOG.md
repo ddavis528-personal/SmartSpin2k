@@ -10,6 +10,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 ### Changed
+- Fixed heart rate monitors being misclassified as power meters: Heart Rate Service is now checked before Cycling Speed & Cadence when classifying advertised devices, and the IC4 FTMS UUID override workaround no longer clobbers a device already identified as a heart rate monitor.
+- Fixed Power Correction Factor having no effect when "Power Table for Power" (pTab4Pwr) mode is enabled; PCF is now applied to power-table-derived watts in addition to live sensor readings.
+- Fixed a sign-extension bug in `bytes_to_u16` that corrupted decoded values >= 0x80.
+- Added mutex protection around the BLE `writeCache` to prevent a race condition between the FTMS task and BLE server.
+- Added length guards on BLE custom-characteristic writes to prevent out-of-bounds reads from malformed/short packets.
+- Fixed a duplicate `esp_ota_end()` call during firmware updates that could corrupt the OTA slot.
+- Fixed a DirCon serial-number buffer size bug and incorrect MAC-to-hex parsing.
+- Fixed an integer-overflow risk in the stepper-speed delay calculation.
+- Added a 10-second timeout to NTP sync at boot to prevent hanging indefinitely with no network.
+- Fixed a float equality comparison in incline tracking to use an epsilon comparison.
+- Fixed an operator-precedence bug in the Power Table homed check and a file-size-after-close bug in Power Table logging.
+- Added a divide-by-zero guard in stepper trim averaging.
+- Removed an incorrect `ARDUINO_ISR_ATTR` attribute from `maintenanceLoop`, which runs as a FreeRTOS task rather than an ISR.
+- Removed variable-length-array (VLA) usage in BLE and Power Table logging.
 
 ### Hardware
 
