@@ -10,6 +10,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 ### Changed
+
+### Hardware
+
+
+## [0.0.0]
+
+### Added
+
+### Changed
 - Fixed heart rate monitors being misclassified as power meters: Heart Rate Service is now checked before Cycling Speed & Cadence when classifying advertised devices, and the IC4 FTMS UUID override workaround no longer clobbers a device already identified as a heart rate monitor.
 - Fixed Power Correction Factor having no effect when "Power Table for Power" (pTab4Pwr) mode is enabled; PCF is now applied to power-table-derived watts in addition to live sensor readings.
 - Fixed a sign-extension bug in `bytes_to_u16` that corrupted decoded values >= 0x80.
