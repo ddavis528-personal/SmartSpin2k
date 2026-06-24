@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 ### Changed
+- Fixed heart rate monitors that also advertise Cycling Power Service (e.g. an HR-to-virtual-power bridge) still being classified as a power meter: Heart Rate Service is now checked before Cycling Power Service when classifying advertised devices, completing the prior HRM-misclassification fix below.
 
 ### Hardware
 
