@@ -30,11 +30,11 @@ class PowerTable {
   // Catalogs a new entry into the power table.
   void newEntry(PowerBuffer& powerBuffer);
 
-  // returns target position for given cadence and watts. Returns RETURN_ERROR if not found.
-  int32_t lookup(int watts, int cad) { return this->ptHelpers.lookup(watts, cad, this->ptData); }
+  // returns target position for given cadence and watts (corrected/final units). Returns RETURN_ERROR if not found.
+  int32_t lookup(int watts, int cad);
 
-  // returns watts for given cadence and target position. Returns RETURN_ERROR if not found.
-  int32_t lookupWatts(int cad, int32_t targetPosition) { return this->ptHelpers.lookupWatts(cad, targetPosition, this->ptData); }
+  // returns watts (corrected/final units) for given cadence and target position. Returns RETURN_ERROR if not found.
+  int32_t lookupWatts(int cad, int32_t targetPosition);
 
   // automatically load or save the Power Table
   bool _manageSaveState(bool canSkipReliabilityChecks = false);
