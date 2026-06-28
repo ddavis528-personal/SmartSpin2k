@@ -10,6 +10,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 ### Changed
+
+### Hardware
+
+
+## [26.6.28]
+
+### Added
+
+### Changed
 - Fixed heart rate monitors that also advertise Cycling Power Service (e.g. an HR-to-virtual-power bridge) still being classified as a power meter: Heart Rate Service is now checked before Cycling Power Service when classifying advertised devices, completing the prior HRM-misclassification fix below.
 - Fixed `reconnectAllDevices()` iterating `myBLEDevices` by value, so the per-slot state reset after a forced disconnect was applied to a throwaway copy instead of the real device record.
 - Fixed Power Correction Factor being applied twice when "Power Table for Power" (pTab4Pwr) mode is enabled: the table is now trained on raw (uncorrected) sensor watts, and `PowerTable::lookup()`/`lookupWatts()` convert to/from corrected units at the class boundary, so PCF is applied exactly once regardless of whether power comes from a live sensor or the table.
