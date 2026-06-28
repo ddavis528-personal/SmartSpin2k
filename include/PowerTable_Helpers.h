@@ -44,7 +44,7 @@ struct ptIndex {
 class PowerBuffer {
  public:
   PowerEntry powerEntry[POWER_SAMPLES];
-  void set(int);
+  void set(int index, int watts);
   void reset();
   int getReadings();
 };

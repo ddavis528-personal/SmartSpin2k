@@ -18,9 +18,9 @@
 #include <map>
 #include <complex>
 
-void PowerBuffer::set(int i) {
+void PowerBuffer::set(int i, int watts) {
   this->powerEntry[i].readings++;
-  this->powerEntry[i].watts          = rtConfig->watts.getValue();
+  this->powerEntry[i].watts          = watts;
   this->powerEntry[i].cad            = rtConfig->cad.getValue();
   this->powerEntry[i].targetPosition = ss2k->getCurrentPosition() / TABLE_DIVISOR;  // dividing by 10 to save memory.
 }
@@ -47,12 +47,18 @@ int PowerBuffer::getReadings() {
 }
 
 void PowerTable::processPowerValue(PowerBuffer& powerBuffer, int cadence, Measurement watts) {
+  // Train on raw (uncorrected) watts so the table's learned watt-axis is independent of
+  // powerCorrectionFactor. lookup()/lookupWatts() convert back to corrected units at the
+  // class boundary, so the factor is applied exactly once regardless of whether power comes
+  // from a sensor or from the table itself.
+  int rawWatts = (int)round(watts.getValue() / userConfig->getPowerCorrectionFactor());
+
   if ((cadence >= (MINIMUM_TABLE_CAD - (POWERTABLE_CAD_INCREMENT / 2))) &&
-      (cadence <= (MINIMUM_TABLE_CAD + (POWERTABLE_CAD_INCREMENT * POWERTABLE_CAD_SIZE) - (POWERTABLE_CAD_SIZE / 2))) && (watts.getValue() > 10) &&  // adding constraints
-      (watts.getValue() < (POWERTABLE_WATT_SIZE * POWERTABLE_WATT_INCREMENT))) {
+      (cadence <= (MINIMUM_TABLE_CAD + (POWERTABLE_CAD_INCREMENT * POWERTABLE_CAD_SIZE) - (POWERTABLE_CAD_SIZE / 2))) && (rawWatts > 10) &&  // adding constraints
+      (rawWatts < (POWERTABLE_WATT_SIZE * POWERTABLE_WATT_INCREMENT))) {
     if (powerBuffer.powerEntry[0].readings == 0) {  // we need to make sure stepper position is not negative so it only takes positive resistance values
       // Take Initial reading
-      powerBuffer.set(0);
+      powerBuffer.set(0, rawWatts);
       // Check if the current stepper position is within a 5% range of the previous stepper position and that the current position is not negative
     }
 
@@ -63,7 +69,7 @@ void PowerTable::processPowerValue(PowerBuffer& powerBuffer, int cadence, Measur
     if (currentPos >= (targetPos - range) && currentPos <= (targetPos + range)) {
       for (int i = 1; i < POWER_SAMPLES; i++) {
         if (powerBuffer.powerEntry[i].readings == 0) {
-          powerBuffer.set(i);  // Add additional readings to the buffer.
+          powerBuffer.set(i, rawWatts);  // Add additional readings to the buffer.
           break;
         }
       }
@@ -141,6 +147,18 @@ void PowerTable::setStepperMinMax() {
       SS2K_LOG(POWERTABLE_LOG_TAG, "Max Position Set: %d", _return);
     }
   }
+}
+
+// watts is in corrected/final units; the table itself is trained on raw watts (see processPowerValue).
+int32_t PowerTable::lookup(int watts, int cad) {
+  int rawWatts = (int)round(watts / userConfig->getPowerCorrectionFactor());
+  return this->ptHelpers.lookup(rawWatts, cad, this->ptData);
+}
+
+// returns watts in corrected/final units; the table's raw lookup is converted here.
+int32_t PowerTable::lookupWatts(int cad, int32_t targetPosition) {
+  int rawWatts = this->ptHelpers.lookupWatts(cad, targetPosition, this->ptData);
+  return (int32_t)round(rawWatts * userConfig->getPowerCorrectionFactor());
 }
 
 void PowerTable::newEntry(PowerBuffer& powerBuffer) {
