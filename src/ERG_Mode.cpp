@@ -187,7 +187,8 @@ void ErgMode::computeErg() {
 }
 
 int32_t ErgMode::_setPointChangeState() {
-  mode = (rtConfig->watts.getTarget() > rtConfig->watts.getValue()) ? Mode::INCREASING : Mode::DECREASING;
+  this->integral = 0.0;  // starting a new approach to setpoint; don't carry windup from the previous one.
+  mode           = (rtConfig->watts.getTarget() > rtConfig->watts.getValue()) ? Mode::INCREASING : Mode::DECREASING;
   // It's better to undershoot increasing watts and overshoot decreasing watts, so lets set the lookup target to the nearest side of POWERTABLE_WATT_INCREMENT
   int adjustedWattTarget = (mode == Mode::INCREASING) ? rtConfig->watts.getTarget() - ERG_MODE_PID_WINDOW : rtConfig->watts.getTarget() + ERG_MODE_PID_WINDOW;
   int32_t tableResult    = powerTable->lookup(adjustedWattTarget,
@@ -233,54 +234,65 @@ int32_t ErgMode::_setPointChangeState() {
   return tableResult;
 }
 
-// INTRODUCING PID CONTROL LOOP
-// Error: Difference between TW and Current W
-
-// Proportional term: Directly Proportional to error
-// Integral term: accumulated sum of errors over time
-// Derivative term: rate of change of error
-
-// PrevError
+// PID CONTROL LOOP
+// Error: Difference between target watts and current watts.
+// Proportional term: directly proportional to error.
+// Integral term: accumulated error over time, eliminates steady-state error near setpoint.
+// Derivative term: rate of change of error, damps overshoot on larger corrections.
 int32_t ErgMode::_inSetpointState() {
-  // Setting Gains For PID Loop
-  double Kp = userConfig->getERGSensitivity();  // Proportional gain based on user sensitivity
+  // Kp is the only user-exposed gain (ERG Sensitivity). Ki/Kd are derived from it via fixed
+  // time constants rather than exposing new tuning knobs - Ti/Td below are conservative
+  // defaults for a mechanically-delayed system and may need field tuning.
+  double Kp            = userConfig->getERGSensitivity();
+  constexpr double Ti  = 8.0;  // integral time constant, seconds
+  constexpr double Td  = 0.5;  // derivative time constant, seconds
+  double Ki            = Kp / Ti;
+  double Kd            = Kp * Td;
 
-  // retrieves the current Watt output
-  int watts = rtConfig->watts.getValue();
-  // retrieves target Watt output
+  int watts  = rtConfig->watts.getValue();
   int target = rtConfig->watts.getTarget();
-  // subtracting target from current watts
-  int error = target - watts;
+  int error  = target - watts;
 
-  // modifying gains based on error
-  if (abs(error) < 10 || (mode != Mode::MAINTAIN)) {
-    Kp = Kp * 0.25;  // decrease further for tiny errors
-  } else if (abs(error) < 50) {
-    Kp = Kp * 0.75;  // Moderate for medium errors
-  } else if (abs(error) > 100) {
-    Kp = Kp * 1.25;  // Aggressive for large errors
+  int prevError = this->prevWatts.getTarget() - this->prevWatts.getValue();
+  // dt between the previous and current real watts reading. Falls back to the nominal tick
+  // interval if timestamps are missing/stale (e.g. first run) so I/D terms stay well-behaved.
+  double dt = (rtConfig->watts.getTimestamp() - this->prevWatts.getTimestamp()) / 1000.0;
+  if (dt <= 0 || dt > 5.0) {
+    dt = ERG_MODE_DELAY / 1000.0;
   }
 
   mode = Mode::MAINTAIN;
 
-  // Defining proportional term
   double proportional = Kp * error;
-  if (rtConfig->watts.getValue() < userConfig->getMinWatts()) {
-    proportional = proportional * userConfig->getERGSensitivity();  // increase proportional term when at very low watts. Prevents Zwift from timeout on initial interval.
+
+  // Integral, with clamped anti-windup so a long error streak can't build an integral term
+  // larger than the stepper can ever act on.
+  int maxChange        = round((long)userConfig->getStepperSpeed() * ERG_MODE_DELAY / 1000.0f);
+  double integralLimit = (Ki > 0) ? (maxChange / Ki) : 0;
+  this->integral += error * dt;
+  if (this->integral > integralLimit) {
+    this->integral = integralLimit;
+  } else if (this->integral < -integralLimit) {
+    this->integral = -integralLimit;
+  }
+  double integralTerm = Ki * this->integral;
+
+  double derivativeTerm = Kd * ((error - prevError) / dt);
+
+  double PID_output = proportional + integralTerm + derivativeTerm;
+
+  if (watts < userConfig->getMinWatts()) {
+    PID_output = PID_output * userConfig->getERGSensitivity();  // ramp faster below the bike's meaningful dynamic range. Prevents Zwift from timeout on initial interval.
   }
 
-  // final PID output
-  double PID_output = proportional;
-
-  // log proportional every five seconds
+  // log PID terms every five seconds
   static unsigned long lastTime = 0;
   if (millis() - lastTime > 5000) {
     lastTime = millis();
-    SS2K_LOG(ERG_MODE_LOG_TAG, "%dw, Target %dw, Proportional: %f", rtConfig->watts.getValue(), rtConfig->watts.getTarget(), proportional);
+    SS2K_LOG(ERG_MODE_LOG_TAG, "%dw, Target %dw, P: %f, I: %f, D: %f", rtConfig->watts.getValue(), rtConfig->watts.getTarget(), proportional, integralTerm, derivativeTerm);
   }
 
   // Cap the change to no more than we can move until the next reading
-  int maxChange = round((long)userConfig->getStepperSpeed() * ERG_MODE_DELAY / 1000.0f);  // max change based on stepper speed and delay
   if (PID_output > maxChange) {
     PID_output = maxChange;
   } else if (PID_output < -maxChange) {
@@ -305,7 +317,8 @@ bool ErgMode::_userIsSpinning(int cadence, float incline) {
   if (cadence <= MIN_ERG_CADENCE) {
     rtConfig->setFTMSMode(FitnessMachineControlPointProcedure::SetIndoorBikeSimulationParameters);
     rtConfig->setTargetIncline(1.0f);
-    return false;  // Cadence too low, nothing to do here
+    this->integral = 0.0;  // not pedaling; don't let error accumulate while idle.
+    return false;          // Cadence too low, nothing to do here
   }
   this->engineStopped = false;
   return true;

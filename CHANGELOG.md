@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Implemented full PID control for ERG mode: `ErgMode::_inSetpointState()` now computes real integral and derivative terms (with clamped anti-windup) instead of only a proportional term, replacing the previous hardcoded gain-scheduling band-aid. The user-facing min-watts ramp-up boost and `ERGSensitivity` tuning knob are preserved.
 
 ### Changed
 - Fixed heart rate monitors that also advertise Cycling Power Service (e.g. an HR-to-virtual-power bridge) still being classified as a power meter: Heart Rate Service is now checked before Cycling Power Service when classifying advertised devices, completing the prior HRM-misclassification fix below.
