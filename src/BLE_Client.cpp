@@ -936,7 +936,7 @@ void SpinBLEClient::checkBLEReconnect() {
 }
 
 void SpinBLEClient::reconnectAllDevices() {
-  for (auto i : spinBLEClient.myBLEDevices) {
+  for (auto& i : spinBLEClient.myBLEDevices) {
     if (NimBLEDevice::getClientByHandle(i.connectedClientID)) {
       if (NimBLEDevice::getClientByHandle(i.connectedClientID)->isConnected()) {
         NimBLEDevice::getClientByHandle(i.connectedClientID)->disconnect();
