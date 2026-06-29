@@ -9,8 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 - Implemented full PID control for ERG mode: `ErgMode::_inSetpointState()` now computes real integral and derivative terms (with clamped anti-windup) instead of only a proportional term, replacing the previous hardcoded gain-scheduling band-aid. The user-facing min-watts ramp-up boost and `ERGSensitivity` tuning knob are preserved.
+- Power table now keeps training from a connected real power meter in the background even while "Power Table for Power" (pTab4Pwr) mode is on, instead of disabling training entirely while the table is in use. A new `rtConfig->rawPmWatts` channel carries the PM's reading independently of `rtConfig->watts` (which pTab4Pwr overwrites with its own estimate), so training never feeds on the table's own predictions.
+- Added an early-training transparency bypass: if the table has no real (non-inferred) reading near the current cadence/position operating point, pTab4Pwr now reports the connected PM's real wattage directly instead of an unsupported `ResistanceModel` extrapolation, while training keeps running in the background.
+- Added calibration-range-change detection: a full re-home (`SS2K::goHome(true)`) whose resulting travel range diverges more than 15% from the table's previously homed range now downgrades all real table entries to inferred confidence (`PowerTable::downgradeConfidence()`) instead of silently continuing to trust them, since a meaningfully different range suggests the mechanical setup changed.
 
 ### Changed
+- Fixed `SetTargetPower` (ERG mode) FTMS requests being rejected with `OpCodeNotSupported` while pTab4Pwr was on and only a power meter (no cadence sensor) was connected, since `connectedPM` was never set in that mode; it is now set whenever a real PM sends data, regardless of pTab4Pwr.
 
 ### Hardware
 

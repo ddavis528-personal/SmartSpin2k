@@ -380,6 +380,10 @@ void SS2K::_findFTMSHome(bool bothDirections) {
 
 void SS2K::goHome(bool bothDirections) {
   SS2K_LOG(MAIN_LOG_TAG, "Starting homing procedure...");
+  // Captured before this re-home overwrites HMin/HMax, so we can tell afterwards whether the
+  // mechanical setup (re-mounted stepper, different bike, slipped coupler) changed meaningfully.
+  const int32_t previousHMin = userConfig->getHMin();
+  const int32_t previousHMax = userConfig->getHMax();
   if (bothDirections) {
     fitnessMachineService.spinDown(FitnessMachineStatus::SpinDown_SpinDownRequested);
     if (!userConfig->getPTab4Pwr()) {
@@ -511,6 +515,18 @@ void SS2K::goHome(bool bothDirections) {
   // --- FINALIZE AND SAVE ---
   rtConfig->setMaxStep(userConfig->getHMax());  // Ensure max step is set from config if not found
   if (bothDirections) {
+    // If the newly-found travel range diverges meaningfully from what the table was trained
+    // against, the table's position-keyed entries may no longer reflect the same physical
+    // resistance mapping. Downgrade (don't erase) confidence so entries must re-earn it via
+    // fresh real-PM readings - a no-op if the table was already wiped (PTab4Pwr off, above).
+    constexpr int kCalibrationRangeChangeThresholdPct = 15;
+    int32_t previousRange = previousHMax - previousHMin;
+    int32_t newRange      = rtConfig->getMaxStep() - rtConfig->getMinStep();
+    if (previousHMin != INT32_MIN && previousHMax != INT32_MIN && previousRange > 0 &&
+        ((abs(newRange - previousRange) * 100) / previousRange) > kCalibrationRangeChangeThresholdPct) {
+      SS2K_LOG(MAIN_LOG_TAG, "Calibration range changed significantly (was %d, now %d steps). Downgrading power table confidence.", previousRange, newRange);
+      powerTable->downgradeConfidence();
+    }
     userConfig->setHMin(rtConfig->getMinStep());
     userConfig->setHMax(rtConfig->getMaxStep());
     userConfig->saveToLittleFS();

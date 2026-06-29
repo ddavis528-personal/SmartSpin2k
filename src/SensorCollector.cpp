@@ -71,17 +71,28 @@ void collectAndSet(NimBLEUUID charUUID, NimBLEUUID serviceUUID, std::string& uni
     }
   }
 
-  if (sensorData->hasPower() && !rtConfig->watts.getSimulate() && !userConfig->getPTab4Pwr()) {
+  // Always capture the real PM's reading into rawPmWatts/connectedPM, even when PTab4Pwr is on,
+  // so the power table keeps training in the background. Only the outward-facing `watts` field
+  // (used for FTMS reporting and ERG control) is gated on PTab4Pwr, since while it's on that
+  // field instead carries the table's own estimate - feeding that back into training would
+  // create a self-reinforcing feedback loop.
+  if (sensorData->hasPower() && !rtConfig->watts.getSimulate()) {
     if ((charUUID == PELOTON_DATA_UUID) && !((strcmp(userConfig->getConnectedPowerMeter(), NONE) == 0) || (strcmp(userConfig->getConnectedPowerMeter(), ANY) == 0))) {
       // Peloton connected but using BLE Power Meter. So skip power for Peloton UUID.
     } else {
       int power = round(sensorData->getPower() * userConfig->getPowerCorrectionFactor());
       if (power > 0 && power < 3000) {
-        rtConfig->watts.setValue(power);
+        rtConfig->rawPmWatts.setValue(power);
         spinBLEClient.connectedPM = true;
+        if (!userConfig->getPTab4Pwr()) {
+          rtConfig->watts.setValue(power);
+        }
         logBufLength += snprintf(logBuf + logBufLength, kLogBufMaxLength - logBufLength, " PW(%d)", power % 10000);
       } else {
-        rtConfig->watts.setValue(0);
+        rtConfig->rawPmWatts.setValue(0);
+        if (!userConfig->getPTab4Pwr()) {
+          rtConfig->watts.setValue(0);
+        }
         logBufLength += snprintf(logBuf + logBufLength, kLogBufMaxLength - logBufLength, " PW IGNORED");
       }
     }

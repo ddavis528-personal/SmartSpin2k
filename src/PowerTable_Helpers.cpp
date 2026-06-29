@@ -585,6 +585,39 @@ bool PTHelpers::fillAllCadenceLines(PTData& ptData) {
   return converged;
 }
 
+bool PTHelpers::hasConfidentDataNear(PTData& ptData, int watts, int cad) {
+  ptIndex index = calculateIndex(watts, cad);
+  if (index.cadIndex < 0 || index.cadIndex > POWERTABLE_CAD_SIZE - 1 || index.wattIndex < 0 || index.wattIndex > POWERTABLE_WATT_SIZE - 1) {
+    return false;  // outside the table's grid entirely
+  }
+  // ResistanceModel::predict()/predictWatts() are continuous fits, so a plausible-looking answer
+  // can still be pure extrapolation. Require a real (readings >= 2) reading at this cell or one
+  // of its immediate neighbors as evidence the regression is actually backed by measurements here.
+  for (int dCad = -1; dCad <= 1; dCad++) {
+    int cadIdx = index.cadIndex + dCad;
+    if (cadIdx < 0 || cadIdx > POWERTABLE_CAD_SIZE - 1) continue;
+    for (int dWatt = -1; dWatt <= 1; dWatt++) {
+      int wattIdx = index.wattIndex + dWatt;
+      if (wattIdx < 0 || wattIdx > POWERTABLE_WATT_SIZE - 1) continue;
+      if (ptData.tableRow[cadIdx].tableEntry[wattIdx].readings >= 2) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
+void PTHelpers::downgradeConfidence(PTData& ptData) {
+  for (int i = 0; i < POWERTABLE_CAD_SIZE; i++) {
+    for (int j = 0; j < POWERTABLE_WATT_SIZE; j++) {
+      TableEntry& entry = ptData.tableRow[i].tableEntry[j];
+      if (entry.targetPosition != INT16_MIN && entry.readings > 1) {
+        entry.readings = 1;  // keep the learned shape, but require fresh confirmation to trust it again
+      }
+    }
+  }
+}
+
 void PTHelpers::clean(PTData& ptData) {
   int removed = 0;
 

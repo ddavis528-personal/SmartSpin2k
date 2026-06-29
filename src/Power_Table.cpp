@@ -161,6 +161,14 @@ int32_t PowerTable::lookupWatts(int cad, int32_t targetPosition) {
   return (int32_t)round(rawWatts * userConfig->getPowerCorrectionFactor());
 }
 
+// watts is in corrected/final units, matching lookup()/lookupWatts().
+bool PowerTable::hasConfidentDataNear(int watts, int cad) {
+  int rawWatts = (int)round(watts / userConfig->getPowerCorrectionFactor());
+  return this->ptHelpers.hasConfidentDataNear(this->ptData, rawWatts, cad);
+}
+
+void PowerTable::downgradeConfidence() { this->ptHelpers.downgradeConfidence(this->ptData); }
+
 void PowerTable::newEntry(PowerBuffer& powerBuffer) {
   // these are floats so that we make sure division works correctly.
   float watts          = 0;

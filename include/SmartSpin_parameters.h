@@ -80,6 +80,10 @@ class RuntimeParameters {
 
  public:
   Measurement watts;
+  // Real power meter reading (PCF-corrected), independent of what's reported via `watts`.
+  // Lets the table train on ground truth even while PTab4Pwr is overwriting `watts` with its
+  // own estimate, instead of risking a self-reinforcing feedback loop.
+  Measurement rawPmWatts;
   Measurement hr;
   Measurement cad;
   Measurement batt;
