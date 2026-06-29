@@ -62,7 +62,6 @@ class otaCallback : public BLECharacteristicCallbacks {
         SS2K_LOG(BLE_OTA_LOG_TAG, "ERROR: Configured OTA boot partition at offset 0x%08x, but running from offset 0x%08x", configured->address, running->address);
         SS2K_LOG(BLE_OTA_LOG_TAG, "(This can happen if either the OTA boot data or preferred boot image become corrupted somehow.)");
         downloadFlag = false;
-        esp_ota_end(otaHandler);
       } else {
         SS2K_LOG(BLE_OTA_LOG_TAG, "2. Running partition type %d subtype %d (offset 0x%08x) \n", running->type, running->subtype, running->address);
       }

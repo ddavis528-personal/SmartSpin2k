@@ -159,7 +159,11 @@ void BLE_ss2kCustomCharacteristic::process(std::string rxValue) {
 #endif
 
   size_t returnLength = rxValue.length();
-  uint8_t returnValue[returnLength];
+  // Read responses write fixed offsets up to returnValue[5] (4-byte values) regardless of the
+  // (often 2-byte) incoming request length, so the backing array must be sized for the largest
+  // possible response, not just the request.
+  constexpr size_t kMinReturnBufferSize = 6;
+  uint8_t returnValue[returnLength > kMinReturnBufferSize ? returnLength : kMinReturnBufferSize];
   std::string returnString = "";
   returnValue[0]           = cc_error;
   for (size_t i = 1; i < returnLength; i++) {
@@ -185,14 +189,16 @@ void BLE_ss2kCustomCharacteristic::process(std::string rxValue) {
       LOG_BUF_APPEND("<-incline");
       if (rxValue[0] == cc_read) {
         returnValue[0] = cc_success;
-        int inc        = rtConfig->getTargetIncline() * 10;
+        // rtConfig->targetIncline is stored in 0.01% units (same scale FTMS uses), so encode/decode
+        // at that scale here too instead of the previously mismatched 0.1% (x10) scale.
+        int inc        = rtConfig->getTargetIncline() * 100;
         returnValue[2] = (uint8_t)(inc & 0xff);
         returnValue[3] = (uint8_t)(inc >> 8);
         returnLength += 2;
       }
       if (rxValue[0] == cc_write && rxValue.length() >= 4) {
         returnValue[0] = cc_success;
-        rtConfig->setTargetIncline(bytes_to_u16(rxValue[3], rxValue[2]) / 10);
+        rtConfig->setTargetIncline(bytes_to_u16(rxValue[3], rxValue[2]) / 100);
         LOG_BUF_APPEND("(%f)", rtConfig->getTargetIncline());
       }
     } break;
@@ -695,7 +701,7 @@ void BLE_ss2kCustomCharacteristic::process(std::string rxValue) {
       LOG_BUF_APPEND("<-Power Tab Data");
       if (rxValue[0] == cc_read) {
         int row = 6;  // 90rpm
-        if (rxValue[2] >= 0 || rxValue[2] < POWERTABLE_CAD_SIZE) {
+        if (rxValue[2] >= 0 && rxValue[2] < POWERTABLE_CAD_SIZE) {
           row = rxValue[2];
         }
         returnString += (uint8_t)row;

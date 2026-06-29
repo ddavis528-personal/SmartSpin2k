@@ -578,7 +578,9 @@ void SpinBLEClient::removeDuplicates(NimBLEClient* pClient) {
           if (BLEDevice::getClientByPeerAddress(oldBLEd.peerAddress)->isConnected()) {
             SS2K_LOG(BLE_CLIENT_LOG_TAG, "%s Detected as a duplicate.  Disconnecting: %s", tBLEd.peerAddress.toString().c_str(), oldBLEd.peerAddress.toString().c_str());
             NimBLEDevice::deleteClient(BLEDevice::getClientByPeerAddress(oldBLEd.peerAddress));
-            oldBLEd.reset(true);
+            // Reset the actual device slot, not the local copy, so the now-deleted client's
+            // entry doesn't linger as a stale/dangling slot in myBLEDevices.
+            this->myBLEDevices[i].reset(true);
             return;
           }
         }

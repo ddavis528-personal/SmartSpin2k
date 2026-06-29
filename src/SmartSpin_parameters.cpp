@@ -194,18 +194,43 @@ JsonDocument doc;
     return;
   }
 
-  // Copy values from the JsonDocument to the Config
-  setFirmwareUpdateURL(doc["firmwareUpdateURL"]);
-  setDeviceName(doc["deviceName"]);
-  setShiftStep(doc["shiftStep"]);
-  setStepperPower(doc["stepperPower"]);
-  setStealthChop(doc["stealthChop"]);
-  setInclineMultiplier(doc["inclineMultiplier"]);
-  setAutoUpdate(doc["autoUpdate"]);
-  setSsid(doc["ssid"]);
-  setPassword(doc["password"]);
-  setConnectedPowerMeter(doc["connectedPowerMeter"]);
-  setConnectedHeartMonitor(doc["connectedHeartMonitor"]);
+  // Copy values from the JsonDocument to the Config.
+  // Guard on isNull() (matching the upgrade-path fields below) so a config.txt that's missing a
+  // key - e.g. partial write, corruption, or an older schema - keeps the setDefaults() value
+  // instead of silently wiping it (empty string / zero / false).
+  if (!doc["firmwareUpdateURL"].isNull()) {
+    setFirmwareUpdateURL(doc["firmwareUpdateURL"]);
+  }
+  if (!doc["deviceName"].isNull()) {
+    setDeviceName(doc["deviceName"]);
+  }
+  if (!doc["shiftStep"].isNull()) {
+    setShiftStep(doc["shiftStep"]);
+  }
+  if (!doc["stepperPower"].isNull()) {
+    setStepperPower(doc["stepperPower"]);
+  }
+  if (!doc["stealthChop"].isNull()) {
+    setStealthChop(doc["stealthChop"]);
+  }
+  if (!doc["inclineMultiplier"].isNull()) {
+    setInclineMultiplier(doc["inclineMultiplier"]);
+  }
+  if (!doc["autoUpdate"].isNull()) {
+    setAutoUpdate(doc["autoUpdate"]);
+  }
+  if (!doc["ssid"].isNull()) {
+    setSsid(doc["ssid"]);
+  }
+  if (!doc["password"].isNull()) {
+    setPassword(doc["password"]);
+  }
+  if (!doc["connectedPowerMeter"].isNull()) {
+    setConnectedPowerMeter(doc["connectedPowerMeter"]);
+  }
+  if (!doc["connectedHeartMonitor"].isNull()) {
+    setConnectedHeartMonitor(doc["connectedHeartMonitor"]);
+  }
   // setFoundDevices(doc["foundDevices"]);
 
   // If statements to upgrade old versions of config.txt that didn't include these
