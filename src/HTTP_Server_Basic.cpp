@@ -742,23 +742,32 @@ void HTTP_Server::FirmwareUpdate() {
   WiFiClientSecure localClient;
   localClient.setCACert(rootCACertificate);
   SS2K_LOG(HTTP_SERVER_LOG_TAG, "Checking for newer firmware:");
-  http.begin(userConfig->getFirmwareUpdateURL() + String(FW_VERSIONFILE),
-             rootCACertificate);  // check version URL
-  delay(100);
-  int httpCode = http.GET();  // get data from version file
-  delay(100);
   String payload;
-  if (httpCode == HTTP_CODE_OK) {  // if version received
-    payload = http.getString();    // save received version
-    payload.trim();
-    SS2K_LOG(HTTP_SERVER_LOG_TAG, "  - Server version: %s", payload.c_str());
-    httpServer.internetConnection = true;
-  } else {
-    SS2K_LOG(HTTP_SERVER_LOG_TAG, "error downloading %s %d", FW_VERSIONFILE, httpCode);
+  int httpCode = HTTP_CODE_NOT_FOUND;
+  // The WiFi connection was just established when this runs at boot, so DNS/connect
+  // can transiently fail. Retry a few times before giving up for this boot cycle.
+  for (int attempt = 0; attempt < 3; attempt++) {
+    http.begin(userConfig->getFirmwareUpdateURL() + String(FW_VERSIONFILE),
+               rootCACertificate);  // check version URL
+    delay(100);
+    httpCode = http.GET();  // get data from version file
+    delay(100);
+    if (httpCode == HTTP_CODE_OK) {  // if version received
+      payload = http.getString();    // save received version
+      payload.trim();
+      SS2K_LOG(HTTP_SERVER_LOG_TAG, "  - Server version: %s", payload.c_str());
+      httpServer.internetConnection = true;
+      http.end();
+      break;
+    }
+    SS2K_LOG(HTTP_SERVER_LOG_TAG, "error downloading %s %d (attempt %d/3)", FW_VERSIONFILE, httpCode, attempt + 1);
     httpServer.internetConnection = false;
+    http.end();
+    if (attempt < 2) {
+      delay(1000);
+    }
   }
 
-  http.end();
   if (httpCode == HTTP_CODE_OK) {  // if version received
     bool updateAnyway = false;
     if (!LittleFS.exists("/index.html")) {
@@ -768,6 +777,7 @@ void HTTP_Server::FirmwareUpdate() {
     }
     Version availableVer(payload.c_str());
     Version currentVer(FIRMWARE_VERSION);
+    String availableVerStr = payload;  // payload gets overwritten below while updating the filesystem
 
     if (((availableVer > currentVer) && (userConfig->getAutoUpdate())) || (!LittleFS.exists("/index.html"))) {
       //////////////// Update LittleFS//////////////
@@ -829,7 +839,7 @@ void HTTP_Server::FirmwareUpdate() {
       //////// Update Firmware /////////
       if (((availableVer > currentVer) || updateAnyway) && (userConfig->getAutoUpdate())) {
         SS2K_LOG(HTTP_SERVER_LOG_TAG, "New firmware detected!");
-        SS2K_LOG(HTTP_SERVER_LOG_TAG, "Upgrading from %s to %s", FIRMWARE_VERSION, payload.c_str());
+        SS2K_LOG(HTTP_SERVER_LOG_TAG, "Upgrading from %s to %s", FIRMWARE_VERSION, availableVerStr.c_str());
         t_httpUpdate_return ret = httpUpdate.update(localClient, userConfig->getFirmwareUpdateURL() + String(FW_BINFILE));
         switch (ret) {
           case HTTP_UPDATE_FAILED:
