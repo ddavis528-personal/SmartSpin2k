@@ -34,6 +34,10 @@ class ErgMode {
   Measurement prevWatts;
   Measurement prevCadence;
 
+  // Accumulated error*dt for the integral term. Reset whenever a new setpoint approach begins
+  // (_setPointChangeState()) or the user stops pedaling, so windup never carries across moves.
+  double integral = 0.0;
+
   // check if user is spinning, reset incline if user stops spinning
   bool _userIsSpinning(int cadence, float incline);
 
