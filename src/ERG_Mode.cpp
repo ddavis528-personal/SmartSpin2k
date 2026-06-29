@@ -90,9 +90,13 @@ void ErgMode::runERG() {
         simulationRunning = rtConfig->watts.getSimulate();
       }
 
-      if (!userConfig->getPTab4Pwr()) {
-        // add values to Power table
-        powerTable->processPowerValue(powerBuffer, rtConfig->cad.getValue(), rtConfig->watts);
+      if (hasConnectedPowerMeter) {
+        // Train on the real PM's ground-truth signal (independent of whatever PTab4Pwr is
+        // currently reporting outward via rtConfig->watts), so the table keeps learning in the
+        // background even while its own estimate is being used for reporting/control. Training
+        // on rtConfig->watts here would risk feeding the table its own predicted output back
+        // into itself once PTab4Pwr is on.
+        powerTable->processPowerValue(powerBuffer, rtConfig->cad.getValue(), rtConfig->rawPmWatts);
       }
 
       // compute ERG
@@ -129,8 +133,15 @@ void ErgMode::runERG() {
       pTab4pwrTimer = millis();
       // Lookup watts using the Power Table.
       if (powerTable->_hasBeenLoadedThisSession) {
+        int tablePWR = powerTable->lookupWatts(rtConfig->cad.getValue(), ss2k->getCurrentPosition());
+        // Early-training bypass: if a real PM is connected but the table has no real reading
+        // basis near this operating point yet, report the PM's ground truth directly instead of
+        // an unsupported ResistanceModel extrapolation. Training (above) keeps running either way.
+        if (spinBLEClient.connectedPM && !powerTable->hasConfidentDataNear(tablePWR, rtConfig->cad.getValue())) {
+          tablePWR = rtConfig->rawPmWatts.getValue();
+        }
         // Instead of directly outputting this, we should smooth the output by averaging it with the last value.
-        _smoothPWR = ((previousPower + powerTable->lookupWatts(rtConfig->cad.getValue(), ss2k->getCurrentPosition())) / 2);
+        _smoothPWR = ((previousPower + tablePWR) / 2);
       } else {
         // only run _manageSaveState every 5 seconds
         static unsigned long int saveStateTimer = millis();

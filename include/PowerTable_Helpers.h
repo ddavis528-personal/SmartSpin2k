@@ -110,4 +110,13 @@ class PTHelpers {
   void fillGaps(PTData& ptData);
   bool fillAllWattColumns(PTData& ptData);
   bool fillAllCadenceLines(PTData& ptData);
+
+  // True if the grid cell nearest (watts, cad) or one of its immediate neighbors has a real
+  // (non-inferred) reading, i.e. ResistanceModel's continuous prediction here is backed by
+  // actual measurements rather than pure extrapolation.
+  bool hasConfidentDataNear(PTData& ptData, int watts, int cad);
+
+  // Downgrades every real (readings >= 2) entry to inferred (readings == 1) confidence without
+  // erasing its value, so entries must re-earn confidence via fresh real-PM readings.
+  void downgradeConfidence(PTData& ptData);
 };

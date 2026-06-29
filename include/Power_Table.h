@@ -36,6 +36,14 @@ class PowerTable {
   // returns watts (corrected/final units) for given cadence and target position. Returns RETURN_ERROR if not found.
   int32_t lookupWatts(int cad, int32_t targetPosition);
 
+  // true if watts/cad (corrected/final units) is backed by a real reading nearby, rather than
+  // pure ResistanceModel extrapolation.
+  bool hasConfidentDataNear(int watts, int cad);
+
+  // Downgrades all real entries to inferred confidence (keeps values, requires re-confirmation).
+  // Used when a re-home's resulting travel range diverges meaningfully from the table's history.
+  void downgradeConfidence();
+
   // automatically load or save the Power Table
   bool _manageSaveState(bool canSkipReliabilityChecks = false);
 
