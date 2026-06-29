@@ -15,7 +15,7 @@ bool EchelonData::hasPower() { return this->cadence >= 0 && this->resistance >= 
 
 bool EchelonData::hasSpeed() { return false; }
 
-bool EchelonData::hasResistance() { return true; }
+bool EchelonData::hasResistance() { return this->resistance >= 0; }
 
 int EchelonData::getHeartRate() { return INT_MIN; }
 

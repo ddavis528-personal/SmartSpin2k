@@ -16,7 +16,7 @@ bool FlywheelData::hasPower() { return this->hasData; }
 
 bool FlywheelData::hasSpeed() { return false; }
 
-bool FlywheelData::hasResistance() { return true; }
+bool FlywheelData::hasResistance() { return this->hasData; }
 
 int FlywheelData::getHeartRate() { return INT_MIN; }
 
@@ -26,7 +26,7 @@ int FlywheelData::getPower() { return this->power; }
 
 float FlywheelData::getSpeed() { return nanf(""); }
 
-int FlywheelData::getResistance() { return INT_MIN; }
+int FlywheelData::getResistance() { return this->resistance; }
 
 void FlywheelData::decode(uint8_t *data, size_t length) {
   if (data[0] == 0xFF) {

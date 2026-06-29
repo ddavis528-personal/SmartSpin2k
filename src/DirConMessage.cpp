@@ -46,8 +46,8 @@ void uuidToBytes(NimBLEUUID& uuid, std::vector<uint8_t>& message) {
 
   uint8_t *uuidBytes = (uint8_t*)uuid.to128().getBase();
 
-  // Add the bytes to the message
-  for(size_t i = 16; i > 0; i--) {
+  // Add the bytes to the message, reversed (16-byte UUID buffer, valid indices 0-15).
+  for (size_t i = 16; i-- > 0;) {
     message.push_back(uuidBytes[i]);
   }
 }
@@ -219,16 +219,17 @@ size_t DirConMessage::parse(uint8_t* data, size_t len, uint8_t sequenceNumber) {
         } else if ((this->Length - 16) % 17 == 0) {
           this->AdditionalUUIDs.clear();
           this->AdditionalData.clear();
+          // Each entry is a 16-byte UUID followed by 1 data byte, matching the wire format this
+          // class writes in encode(). Parse directly from the incoming bytes instead of looking
+          // up local service state, which previously advanced `index` by an unrelated amount
+          // (a UUID's human-readable string length) and could loop forever if it ever reached 0.
           size_t index = 16;
           while (this->Length >= index + 17) {
-            // Ensure consistent byte order for characteristic UUIDs
-            NimBLEService* pService                                   = spinBLEServer.pServer->getServiceByUUID(this->UUID);
-            const std::vector<NimBLECharacteristic*> pCharacteristics = pService->getCharacteristics();
-            for (NimBLECharacteristic* pCharacteristic : pCharacteristics) {
-              this->AdditionalUUIDs.push_back(pCharacteristic->getUUID());
-              index += pCharacteristic->getUUID().toString().length();
-              parsedBytes += pCharacteristic->getUUID().toString().length();
-            }
+            NimBLEUUID charUuid = bytesToUuid(data + DIRCON_MESSAGE_HEADER_LENGTH, index);
+            this->AdditionalUUIDs.push_back(charUuid);
+            this->AdditionalData.push_back((uint8_t)data[DIRCON_MESSAGE_HEADER_LENGTH + index + 16]);
+            index += 17;
+            parsedBytes += 17;
           }
         }
       } else {

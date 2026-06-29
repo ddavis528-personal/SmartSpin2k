@@ -15,6 +15,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 - Fixed `SetTargetPower` (ERG mode) FTMS requests being rejected with `OpCodeNotSupported` while pTab4Pwr was on and only a power meter (no cadence sensor) was connected, since `connectedPM` was never set in that mode; it is now set whenever a real PM sends data, regardless of pTab4Pwr.
+- Fixed a stack buffer overflow in the BLE custom characteristic handler: the response buffer was sized to the (often 2-byte) incoming request instead of the largest possible reply, so several read handlers (incline, hMin, hMax, target position, etc.) wrote past the end of the stack array on every BLE read from a connected client.
+- Fixed an always-true bounds check (`||` instead of `&&`) on the power table BLE read path that allowed an out-of-bounds row read from `powerTable->ptData.tableRow`.
+- Fixed the BLE custom characteristic's incline read/write using a 0.1% scale while FTMS uses 0.01%, causing incline values set/read via the app's custom characteristic to be off by 10x from what the stepper actually uses.
+- Fixed Flywheel devices always reporting `INT_MIN` resistance: `FlywheelData::getResistance()` ignored the decoded value, and both `FlywheelData::hasResistance()` and `EchelonData::hasResistance()` unconditionally returned true even with no valid reading.
+- Fixed `SpinBLEClient::removeDuplicates()` resetting a local copy of a duplicate device's slot instead of the actual entry in `myBLEDevices`, leaving a stale slot behind after disconnecting the duplicate.
+- Fixed an off-by-one in the DirCon protocol's UUID encoding (`uuidToBytes`) that read one byte past the UUID buffer and never read its first byte, corrupting every UUID sent to DirCon (Zwift direct-connect) clients.
+- Fixed DirCon `DISCOVER_CHARACTERISTICS` request parsing: the loop advanced by an unrelated value (a UUID's human-readable string length) instead of the wire size per entry, which could loop forever or read attacker-influenced state from a crafted TCP packet; it now parses the UUID/data pairs directly from the incoming bytes.
+- Fixed an erroneous `esp_ota_end()` call on a handle that was never opened via `esp_ota_begin()` in the BLE OTA boot-partition-mismatch error path.
+- Fixed `loadFromLittleFS()` silently wiping several config fields (device name, WiFi SSID/password, firmware update URL, etc.) to empty/default whenever the saved `config.txt` was missing one of those keys, instead of keeping the value `setDefaults()` had just set.
 
 ### Hardware
 
