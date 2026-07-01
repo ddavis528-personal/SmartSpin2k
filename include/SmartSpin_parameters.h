@@ -133,6 +133,7 @@ class userParameters {
   bool stealthChop;
   float inclineMultiplier;
   float powerCorrectionFactor;
+  float highEndPowerScaleFactor;
   float ERGSensitivity;
   bool autoUpdate;
   int stepperPower;
@@ -175,6 +176,9 @@ class userParameters {
 
   void setPowerCorrectionFactor(float pcf) { powerCorrectionFactor = pcf; }
   float getPowerCorrectionFactor() { return powerCorrectionFactor; }
+
+  void setHighEndPowerScaleFactor(float k) { highEndPowerScaleFactor = k; }
+  float getHighEndPowerScaleFactor() { return highEndPowerScaleFactor; }
 
   float getERGSensitivity() { return ERGSensitivity; }
   void setERGSensitivity(float ergS) { ERGSensitivity = ergS; }

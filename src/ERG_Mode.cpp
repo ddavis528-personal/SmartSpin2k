@@ -133,11 +133,13 @@ void ErgMode::runERG() {
       pTab4pwrTimer = millis();
       // Lookup watts using the Power Table.
       if (powerTable->_hasBeenLoadedThisSession) {
-        int tablePWR = powerTable->lookupWatts(rtConfig->cad.getValue(), ss2k->getCurrentPosition());
-        // Early-training bypass: if a real PM is connected but the table has no real reading
-        // basis near this operating point yet, report the PM's ground truth directly instead of
-        // an unsupported ResistanceModel extrapolation. Training (above) keeps running either way.
-        if (spinBLEClient.connectedPM && !powerTable->hasConfidentDataNear(tablePWR, rtConfig->cad.getValue())) {
+        int tablePWR = powerTable->effectiveWatts(rtConfig->cad.getValue(), ss2k->getCurrentPosition());
+        // Early-training bypass: if a real PM is connected but the table has no confident real
+        // reading near this operating point yet, report the PM's ground truth directly instead of
+        // an unsupported ResistanceModel extrapolation. Skip when K>1 — the model is providing
+        // a position-aware estimate that is intentionally different from the flat PM reading.
+        if (userConfig->getHighEndPowerScaleFactor() <= 1.0f && spinBLEClient.connectedPM &&
+            !powerTable->hasConfidentDataNear(tablePWR, rtConfig->cad.getValue())) {
           tablePWR = rtConfig->rawPmWatts.getValue();
         }
         // Instead of directly outputting this, we should smooth the output by averaging it with the last value.
@@ -202,13 +204,41 @@ int32_t ErgMode::_setPointChangeState() {
   mode           = (rtConfig->watts.getTarget() > rtConfig->watts.getValue()) ? Mode::INCREASING : Mode::DECREASING;
   // It's better to undershoot increasing watts and overshoot decreasing watts, so lets set the lookup target to the nearest side of POWERTABLE_WATT_INCREMENT
   int adjustedWattTarget = (mode == Mode::INCREASING) ? rtConfig->watts.getTarget() - ERG_MODE_PID_WINDOW : rtConfig->watts.getTarget() + ERG_MODE_PID_WINDOW;
-  int32_t tableResult    = powerTable->lookup(adjustedWattTarget,
-                                           (mode == Mode::INCREASING) ? rtConfig->cad.getValue() + POWERTABLE_CAD_INCREMENT : rtConfig->cad.getValue() - POWERTABLE_CAD_INCREMENT);
+  int adjustedCad        = (mode == Mode::INCREASING) ? rtConfig->cad.getValue() + POWERTABLE_CAD_INCREMENT : rtConfig->cad.getValue() - POWERTABLE_CAD_INCREMENT;
 
-  // Sanity check - with homing enabled, we should never have a negative result. If we do, something went wrong.
-  if (rtConfig->getHomed() && tableResult < 0) {
-    SS2K_LOG(ERG_MODE_LOG_TAG, "PowerTable returned negative result with homing enabled. Using PID");
-    tableResult = RETURN_ERROR;
+  float K             = userConfig->getHighEndPowerScaleFactor();
+  int32_t tableResult = RETURN_ERROR;
+
+  if (K > 1.0f) {
+    // Model inverse: W(P,C) = minWatts*(C/C_ref)*[1+(K-1)*P_norm^gamma]
+    // Solve for P_norm given target W and C, then convert to stepper position.
+    int32_t minStep  = rtConfig->getMinStep();
+    int32_t maxStep  = rtConfig->getMaxStep();
+    int minWatts     = userConfig->getMinWatts();
+    if (maxStep > minStep && minWatts > 0 && adjustedCad > 0) {
+      float denom = (float)minWatts * ((float)adjustedCad / (float)ERG_MODEL_CADENCE_REF);
+      if (denom > 0.0f) {
+        float ratio = (float)adjustedWattTarget / denom;
+        if (ratio <= 1.0f) {
+          tableResult = minStep;
+        } else {
+          float P_norm_gamma = (ratio - 1.0f) / (K - 1.0f);
+          if (P_norm_gamma >= 1.0f) {
+            tableResult = maxStep;
+          } else {
+            float P_norm = powf(P_norm_gamma, 1.0f / ERG_MODEL_GAMMA);
+            tableResult  = (int32_t)round((float)minStep + P_norm * (float)(maxStep - minStep));
+          }
+        }
+      }
+    }
+  } else {
+    tableResult = powerTable->lookup(adjustedWattTarget, adjustedCad);
+    // Sanity check — table lookup should never return a negative position when homed.
+    if (rtConfig->getHomed() && tableResult < 0) {
+      SS2K_LOG(ERG_MODE_LOG_TAG, "PowerTable returned negative result with homing enabled. Using PID");
+      tableResult = RETURN_ERROR;
+    }
   }
 
   // Test current watts against the table result. If We're already lower or higher than target, flag the result as a return error.
@@ -323,6 +353,31 @@ int32_t ErgMode::_inSetpointState() {
     newIncline = (float)rtConfig->getMaxStep();
     if (this->integral > 0) this->integral = 0;
   }
+
+  // K saturation learning: when the stepper is pinned at maxStep AND we're still meaningfully
+  // undershooting the target, bump highEndPowerScaleFactor so the model inverse starts directing
+  // ERG to lower (sub-maxStep) positions that the bike can actually reach.
+  {
+    static unsigned long saturationStart = 0;
+    bool atMaxStop    = (ss2k->getCurrentPosition() >= rtConfig->getMaxStep());
+    int undershoot    = rtConfig->watts.getTarget() - rtConfig->watts.getValue();
+    float currentK    = userConfig->getHighEndPowerScaleFactor();
+    if (atMaxStop && undershoot > ERG_MODEL_SATURATION_UNDERSHOOT_W && currentK < ERG_MODEL_K_MAX) {
+      if (saturationStart == 0) {
+        saturationStart = millis();
+      } else if (millis() - saturationStart >= ERG_MODEL_SATURATION_HOLD_MS) {
+        float newK = currentK + ERG_MODEL_K_BUMP_DELTA;
+        if (newK > ERG_MODEL_K_MAX) newK = ERG_MODEL_K_MAX;
+        userConfig->setHighEndPowerScaleFactor(newK);
+        userConfig->saveToLittleFS();
+        SS2K_LOG(ERG_MODE_LOG_TAG, "K bumped to %.2f (saturation learning)", newK);
+        saturationStart = millis();
+      }
+    } else {
+      saturationStart = 0;
+    }
+  }
+
   return newIncline;
 }
 
