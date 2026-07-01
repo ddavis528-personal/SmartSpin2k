@@ -310,8 +310,19 @@ int32_t ErgMode::_inSetpointState() {
     PID_output = -maxChange;
   }
 
-  // Calculate new incline
+  // Calculate new incline and clamp to the configured travel limits so that ERG mode
+  // saturates cleanly when Zwift requests a wattage the bike can never reach.  Without this,
+  // the PID keeps computing targets well outside the reachable range while the motor is
+  // already held at the hard stop, the integral winds up in the saturating direction, and
+  // recovery is sluggish once a reachable target is set again.
   float newIncline = ss2k->getCurrentPosition() + PID_output;
+  if (newIncline < (float)rtConfig->getMinStep()) {
+    newIncline = (float)rtConfig->getMinStep();
+    if (this->integral < 0) this->integral = 0;
+  } else if (newIncline > (float)rtConfig->getMaxStep()) {
+    newIncline = (float)rtConfig->getMaxStep();
+    if (this->integral > 0) this->integral = 0;
+  }
   return newIncline;
 }
 
