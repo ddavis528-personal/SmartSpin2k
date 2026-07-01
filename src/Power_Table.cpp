@@ -165,6 +165,33 @@ int32_t PowerTable::lookupWatts(int cad, int32_t targetPosition) {
   return (int32_t)round(rawWatts * userConfig->getPowerCorrectionFactor());
 }
 
+// Position-aware watt estimate using the learned highEndPowerScaleFactor (K).
+// When K==1.0 (default), delegates to lookupWatts() so behaviour is unchanged.
+// W(P,C) = minWatts * (C / C_ref) * [1 + (K-1) * P_norm^gamma]
+// where P_norm = clamp((P - minStep) / (maxStep - minStep), 0, 1).
+int32_t PowerTable::effectiveWatts(int cad, int32_t targetPosition) {
+  float K = userConfig->getHighEndPowerScaleFactor();
+  if (K <= 1.0f) {
+    return lookupWatts(cad, targetPosition);
+  }
+
+  int32_t minStep = rtConfig->getMinStep();
+  int32_t maxStep = rtConfig->getMaxStep();
+  int minWatts    = userConfig->getMinWatts();
+
+  if (maxStep <= minStep || minWatts <= 0 || cad <= 0) {
+    return lookupWatts(cad, targetPosition);
+  }
+
+  float P_norm = (float)(targetPosition - minStep) / (float)(maxStep - minStep);
+  if (P_norm < 0.0f) P_norm = 0.0f;
+  if (P_norm > 1.0f) P_norm = 1.0f;
+
+  float modelWatts = (float)minWatts * ((float)cad / (float)ERG_MODEL_CADENCE_REF) *
+                     (1.0f + (K - 1.0f) * powf(P_norm, ERG_MODEL_GAMMA));
+  return (int32_t)round(modelWatts);
+}
+
 // watts is in corrected/final units, matching lookup()/lookupWatts().
 bool PowerTable::hasConfidentDataNear(int watts, int cad) {
   int rawWatts = (int)round(watts / userConfig->getPowerCorrectionFactor());
@@ -401,6 +428,7 @@ bool PowerTable::reset() {
   }
   userConfig->setHMax(INT32_MIN);
   userConfig->setHMin(INT32_MIN);
+  userConfig->setHighEndPowerScaleFactor(1.0f);
   rtConfig->setHomed(false);
   File file = LittleFS.open(POWER_TABLE_FILENAME, FILE_READ);
   if (!file) {

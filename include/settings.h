@@ -79,6 +79,20 @@ const char* const DEFAULT_PASSWORD = "password";
 // would move 1200 steps to compensate, however ERG_Sensitivity values much different than 1.0 imply shiftStep has been improperly configured.
 #define ERG_SENSITIVITY 3.0f
 
+// Hidden ERG position-aware power model parameters — may be exposed via app settings in the future.
+// Reference cadence (RPM) used as the denominator in the model's cadence-scaling term.
+#define ERG_MODEL_CADENCE_REF 50
+// Exponent shaping the resistance curve between minStep (flat) and maxStep (max power).
+#define ERG_MODEL_GAMMA 1.5f
+// Step size for bumping highEndPowerScaleFactor (K) during saturation learning.
+#define ERG_MODEL_K_BUMP_DELTA 0.05f
+// Upper bound for K — prevents runaway learning.
+#define ERG_MODEL_K_MAX 6.0f
+// How long (ms) saturation must persist before a K bump fires.
+#define ERG_MODEL_SATURATION_HOLD_MS 25000UL
+// Minimum undershoot (watts) required for saturation learning to activate.
+#define ERG_MODEL_SATURATION_UNDERSHOOT_W 15
+
 // Number of watts per shift expected by ERG mode for it's calculation. The user should target this number by adjusting Shift Step until WATTS_PER_SHIFT
 // is obtained as closely as possible during each shift.
 #define WATTS_PER_SHIFT 30

@@ -54,8 +54,9 @@ void userParameters::setDefaults() {
   stepperPower          = DEFAULT_STEPPER_POWER;
   stepperSpeed          = DEFAULT_STEPPER_SPEED;
   inclineMultiplier     = INCLINE_MULTIPLIER;
-  powerCorrectionFactor = 1.0;
-  ERGSensitivity        = ERG_SENSITIVITY;
+  powerCorrectionFactor       = 1.0;
+  highEndPowerScaleFactor = 1.0f;
+  ERGSensitivity              = ERG_SENSITIVITY;
   autoUpdate            = AUTO_FIRMWARE_UPDATE;
   ssid                  = DEVICE_NAME;
   password              = DEFAULT_PASSWORD;
@@ -91,15 +92,16 @@ String userParameters::returnJSON() {
   doc["stepperSpeed"]          = stepperSpeed;
   doc["stealthChop"]           = stealthChop;
   doc["inclineMultiplier"]     = inclineMultiplier;
-  doc["powerCorrectionFactor"] = powerCorrectionFactor;
-  doc["ERGSensitivity"]        = ERGSensitivity;
-  doc["autoUpdate"]            = autoUpdate;
-  doc["ssid"]                  = ssid;
-  doc["password"]              = password;
-  doc["connectedPowerMeter"]   = connectedPowerMeter;
-  doc["connectedHeartMonitor"] = connectedHeartMonitor;
-  doc["connectedRemote"]       = connectedRemote;
-  doc["foundDevices"]          = foundDevices;
+  doc["powerCorrectionFactor"]   = powerCorrectionFactor;
+  doc["highEndPowerScaleFactor"] = highEndPowerScaleFactor;
+  doc["ERGSensitivity"]          = ERGSensitivity;
+  doc["autoUpdate"]              = autoUpdate;
+  doc["ssid"]                    = ssid;
+  doc["password"]                = password;
+  doc["connectedPowerMeter"]     = connectedPowerMeter;
+  doc["connectedHeartMonitor"]   = connectedHeartMonitor;
+  doc["connectedRemote"]         = connectedRemote;
+  doc["foundDevices"]            = foundDevices;
   doc["maxWatts"]              = maxWatts;
   doc["minWatts"]              = minWatts;
   doc["shifterDir"]            = shifterDir;
@@ -143,14 +145,15 @@ void userParameters::saveToLittleFS() {
   doc["stepperSpeed"]          = stepperSpeed;
   doc["stealthChop"]           = stealthChop;
   doc["inclineMultiplier"]     = inclineMultiplier;
-  doc["powerCorrectionFactor"] = powerCorrectionFactor;
-  doc["ERGSensitivity"]        = ERGSensitivity;
-  doc["autoUpdate"]            = autoUpdate;
-  doc["ssid"]                  = ssid;
-  doc["password"]              = password;
-  doc["connectedPowerMeter"]   = connectedPowerMeter;
-  doc["connectedHeartMonitor"] = connectedHeartMonitor;
-  doc["connectedRemote"]       = connectedRemote;
+  doc["powerCorrectionFactor"]   = powerCorrectionFactor;
+  doc["highEndPowerScaleFactor"] = highEndPowerScaleFactor;
+  doc["ERGSensitivity"]          = ERGSensitivity;
+  doc["autoUpdate"]              = autoUpdate;
+  doc["ssid"]                    = ssid;
+  doc["password"]                = password;
+  doc["connectedPowerMeter"]     = connectedPowerMeter;
+  doc["connectedHeartMonitor"]   = connectedHeartMonitor;
+  doc["connectedRemote"]         = connectedRemote;
   // doc["foundDevices"]          = foundDevices;
   doc["maxWatts"]      = maxWatts;
   doc["minWatts"]      = minWatts;
@@ -262,6 +265,12 @@ JsonDocument doc;
     setPowerCorrectionFactor(doc["powerCorrectionFactor"]);
     if ((getPowerCorrectionFactor() < MIN_PCF) || (getPowerCorrectionFactor() > MAX_PCF)) {
       setPowerCorrectionFactor(1);
+    }
+  }
+  if (doc["highEndPowerScaleFactor"]) {
+    float k = doc["highEndPowerScaleFactor"];
+    if (k >= 1.0f && k <= ERG_MODEL_K_MAX) {
+      setHighEndPowerScaleFactor(k);
     }
   }
   if (doc["connectedRemote"]) {
