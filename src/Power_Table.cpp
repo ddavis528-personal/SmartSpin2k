@@ -92,13 +92,17 @@ void PowerTable::processPowerValue(PowerBuffer& powerBuffer, int cadence, Measur
 void PowerTable::setStepperMinMax() {
   int32_t _return = RETURN_ERROR;
 
-  // if Homing was performed, skip estimating min_max
-  if (rtConfig->getHomed() && (userConfig->getHMin() != INT32_MIN || userConfig->getHMax() != INT32_MIN)) {
-    SS2K_LOG(POWERTABLE_LOG_TAG, "Using detected travel limits during homing");
+  // If the user has explicitly configured travel limits (via homing or the app), always use
+  // those directly rather than re-estimating from the power table.  The BLE write path sets
+  // userConfig->setHMin/Max() without raising the homed flag, so the previous guard on
+  // rtConfig->getHomed() caused those app-configured stops to be silently overwritten on
+  // every call here.
+  if (userConfig->getHMin() != INT32_MIN || userConfig->getHMax() != INT32_MIN) {
+    SS2K_LOG(POWERTABLE_LOG_TAG, "Using configured travel limits (hMin=%d hMax=%d)", userConfig->getHMin(), userConfig->getHMax());
     rtConfig->setMinStep(userConfig->getHMin());
     rtConfig->setMaxStep(userConfig->getHMax());
     return;
-  } else if (rtConfig->getHomed()){
+  } else if (rtConfig->getHomed()) {
     SS2K_LOG(POWERTABLE_LOG_TAG, "HOMING VALUES NOT FOUND");
   }
 
