@@ -214,9 +214,21 @@ void SS2K::maintenanceLoop(void* pvParameters) {
       }
       // Don't do these if updating and in spindown mode.
       if (!spinBLEServer.spinDownFlag) {
-        ss2k->moveStepper();
-        ss2k->FTMSModeShiftModifier();
-        ergMode->runERG();
+        // If travel limits have never been set, schedule a full homing run.
+        // The BLE client task already waits for cadence > 10 before executing goHome(),
+        // so it is safe to set the flag unconditionally here.  The static guard prevents
+        // re-triggering on the same boot if homing fails (user can reboot to retry).
+        static bool autoHomingScheduled = false;
+        if (!autoHomingScheduled &&
+            userConfig->getHMin() == INT32_MIN && userConfig->getHMax() == INT32_MIN) {
+          SS2K_LOG(MAIN_LOG_TAG, "Travel limits not set — scheduling automatic homing on first pedal stroke.");
+          spinBLEServer.spinDownFlag = 2;
+          autoHomingScheduled        = true;
+        } else {
+          ss2k->moveStepper();
+          ss2k->FTMSModeShiftModifier();
+          ergMode->runERG();
+        }
       }
       // wattbikeService.parseNemit();
 
