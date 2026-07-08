@@ -354,27 +354,48 @@ int32_t ErgMode::_inSetpointState() {
     if (this->integral > 0) this->integral = 0;
   }
 
-  // K saturation learning: when the stepper is pinned at maxStep AND we're still meaningfully
-  // undershooting the target, bump highEndPowerScaleFactor so the model inverse starts directing
-  // ERG to lower (sub-maxStep) positions that the bike can actually reach.
+  // Saturation detection: if ERG has been pushing upward without power responding (bike at
+  // physical max, motor slipping, or physically disconnected from the knob) hold the current
+  // position and suppress upward integral.  Does NOT require the position counter to actually
+  // reach maxStep — that default is ±200 million steps and would never trigger in practice.
+  // K is also bumped when we confirm we are genuinely at the configured hard stop, so the
+  // model learns the correct ceiling for future sessions.
   {
     static unsigned long saturationStart = 0;
-    bool atMaxStop    = (ss2k->getCurrentPosition() >= rtConfig->getMaxStep());
-    int undershoot    = rtConfig->watts.getTarget() - rtConfig->watts.getValue();
-    float currentK    = userConfig->getHighEndPowerScaleFactor();
-    if (atMaxStop && undershoot > ERG_MODEL_SATURATION_UNDERSHOOT_W && currentK < ERG_MODEL_K_MAX) {
+    static bool          saturationHeld  = false;
+    bool  pushingUp  = (PID_output > 0.0f);
+    int   undershoot = rtConfig->watts.getTarget() - rtConfig->watts.getValue();
+    float currentK   = userConfig->getHighEndPowerScaleFactor();
+
+    // Release held state once power catches up or ERG is no longer pushing upward.
+    if (undershoot <= ERG_MODEL_SATURATION_UNDERSHOOT_W || !pushingUp) {
+      saturationHeld  = false;
+      saturationStart = 0;
+    } else if (!saturationHeld) {
       if (saturationStart == 0) {
         saturationStart = millis();
       } else if (millis() - saturationStart >= ERG_MODEL_SATURATION_HOLD_MS) {
-        float newK = currentK + ERG_MODEL_K_BUMP_DELTA;
-        if (newK > ERG_MODEL_K_MAX) newK = ERG_MODEL_K_MAX;
-        userConfig->setHighEndPowerScaleFactor(newK);
-        userConfig->saveToLittleFS();
-        SS2K_LOG(ERG_MODE_LOG_TAG, "K bumped to %.2f (saturation learning)", newK);
-        saturationStart = millis();
+        saturationHeld  = true;
+        saturationStart = 0;
+        SS2K_LOG(ERG_MODE_LOG_TAG, "ERG saturated at pos %d (target %dw actual %dw)",
+                 (int)ss2k->getCurrentPosition(), rtConfig->watts.getTarget(), rtConfig->watts.getValue());
+        // Only bump K when actually at the configured physical ceiling.
+        if (ss2k->getCurrentPosition() >= rtConfig->getMaxStep() - 1 && currentK < ERG_MODEL_K_MAX) {
+          float newK = currentK + ERG_MODEL_K_BUMP_DELTA;
+          if (newK > ERG_MODEL_K_MAX) newK = ERG_MODEL_K_MAX;
+          userConfig->setHighEndPowerScaleFactor(newK);
+          userConfig->saveToLittleFS();
+          SS2K_LOG(ERG_MODE_LOG_TAG, "K bumped to %.2f (at physical max)", newK);
+        }
       }
-    } else {
-      saturationStart = 0;
+    }
+
+    // While saturated: prevent the motor from going higher and clear any upward integral.
+    if (saturationHeld) {
+      if (newIncline > (float)ss2k->getCurrentPosition()) {
+        newIncline = (float)ss2k->getCurrentPosition();
+      }
+      if (this->integral > 0) this->integral = 0;
     }
   }
 
