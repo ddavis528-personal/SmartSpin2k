@@ -9,7 +9,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+### Changed
+
+### Hardware
+
+
+## [26.7.9]
+
+### Added
+
 ### Fixed
+- Calibration broken after moveStepper() was moved outside the spinDownFlag gate: goHome() runs in the BLE client task and calls stepper->move/moveTo directly; the main loop simultaneously calling moveStepper() fought it for stepper control. Added isHoming flag set at the start of goHome() (cleared on all exit paths) so moveStepper() yields during the homing sequence while still running freely when only waiting for homing to be triggered.
 - Motor frozen after firmware flash: `moveStepper()` was gated inside `if (!spinDownFlag)`, so any time homing was pending (spinDownFlag=1 on startup with known limits, or spinDownFlag=2 waiting for first pedal stroke) the motor would not respond to app or shifter commands at all. `moveStepper()` now always runs; only ERG mode and automatic mode changes remain gated on spinDownFlag.
 - ERG stepper runaway: saturation detection previously required `getCurrentPosition() >= getMaxStep()`, but `maxStep` defaults to ±200 million steps when the device has not been homed, so the guard never fired and the motor would spin indefinitely when Zwift requested unachievable wattage. Detection is now time-based: if ERG has been pushing upward for 25 s without power responding, position is held and upward integral is zeroed regardless of where the configured stop is.
 - `resetPowerTableFlag` was never cleared after processing, causing the ERG task to delete and reset the power table on every loop tick once the flag was set. The flag is now cleared immediately before the work begins.

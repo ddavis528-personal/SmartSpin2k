@@ -379,6 +379,7 @@ void SS2K::_findFTMSHome(bool bothDirections) {
 }
 
 void SS2K::goHome(bool bothDirections) {
+  ss2k->isHoming = true;
   SS2K_LOG(MAIN_LOG_TAG, "Starting homing procedure...");
   // Captured before this re-home overwrites HMin/HMax, so we can tell afterwards whether the
   // mechanical setup (re-mounted stepper, different bike, slipped coupler) changed meaningfully.
@@ -397,6 +398,7 @@ void SS2K::goHome(bool bothDirections) {
     ss2k->_findFTMSHome(bothDirections);
     if (rtConfig->getHomed()) {
       fitnessMachineService.spinDown(FitnessMachineStatus::SpinDown_Success);
+      ss2k->isHoming = false;
       return;
     }
   }
@@ -404,6 +406,7 @@ void SS2K::goHome(bool bothDirections) {
   if (!stepper || currentBoard.name == r1_NAME) {
     SS2K_LOG(MAIN_LOG_TAG, "Homing not supported or stepper not initialized.");
     fitnessMachineService.spinDown(FitnessMachineStatus::SpinDown_Error);
+    ss2k->isHoming = false;
     return;
   }
 
@@ -483,6 +486,7 @@ void SS2K::goHome(bool bothDirections) {
     setupTMCStepperDriver(true);
     rtConfig->setHomed(false);
     fitnessMachineService.spinDown(FitnessMachineStatus::SpinDown_Error);
+    ss2k->isHoming = false;
     return;
   }
   stepper->move(userConfig->getShiftStep(), true);  // Back off the end stop slightly
@@ -498,6 +502,7 @@ void SS2K::goHome(bool bothDirections) {
       setupTMCStepperDriver(true);
       rtConfig->setHomed(false);
       fitnessMachineService.spinDown(FitnessMachineStatus::SpinDown_Error);
+      ss2k->isHoming = false;
       return;
     }
     rtConfig->setMaxStep(stepper->getCurrentPosition() - userConfig->getShiftStep());
@@ -537,6 +542,7 @@ void SS2K::goHome(bool bothDirections) {
     rtConfig->setHomed(false);
   }
   SS2K_LOG(MAIN_LOG_TAG, "Homing procedure complete.");
+  ss2k->isHoming = false;
 }
 
 // Applies current power to driver
