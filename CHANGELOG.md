@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 ### Fixed
+- Motor frozen after firmware flash: `moveStepper()` was gated inside `if (!spinDownFlag)`, so any time homing was pending (spinDownFlag=1 on startup with known limits, or spinDownFlag=2 waiting for first pedal stroke) the motor would not respond to app or shifter commands at all. `moveStepper()` now always runs; only ERG mode and automatic mode changes remain gated on spinDownFlag.
 - ERG stepper runaway: saturation detection previously required `getCurrentPosition() >= getMaxStep()`, but `maxStep` defaults to ±200 million steps when the device has not been homed, so the guard never fired and the motor would spin indefinitely when Zwift requested unachievable wattage. Detection is now time-based: if ERG has been pushing upward for 25 s without power responding, position is held and upward integral is zeroed regardless of where the configured stop is.
 - `resetPowerTableFlag` was never cleared after processing, causing the ERG task to delete and reset the power table on every loop tick once the flag was set. The flag is now cleared immediately before the work begins.
 - `resetPowerTableFlag` handler set `spinDownFlag = 0` after clearing hMin/hMax, allowing ERG to resume with no travel limits. `autoHomingScheduled` had already fired so auto-homing would not re-trigger in the same session. The handler now sets `spinDownFlag = 2` to schedule a full bidirectional homing run before ERG resumes.
