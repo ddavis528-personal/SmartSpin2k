@@ -212,10 +212,12 @@ void SS2K::maintenanceLoop(void* pvParameters) {
         webSocketAppender.Loop();
         bleTimer = millis();
       }
-      // moveStepper() always runs so the motor responds to app/shifter commands even while
-      // waiting for homing.  Only ERG and automatic mode changes are gated on spinDownFlag —
-      // those need calibrated travel limits before they can command the motor meaningfully.
-      ss2k->moveStepper();
+      // moveStepper() runs whenever we are not actively executing a homing sequence, so the
+      // motor responds to app/shifter commands even while waiting for homing to be triggered.
+      // isHoming is set by goHome() for the duration of the sequence so we don't fight it.
+      if (!ss2k->isHoming) {
+        ss2k->moveStepper();
+      }
 
       // ERG, auto-homing scheduling, and mode modifiers are suppressed during spindown/homing.
       if (!spinBLEServer.spinDownFlag) {

@@ -49,6 +49,7 @@ class SS2K {
   bool resetDefaultsFlag   = false;
   bool resetPowerTableFlag = false;
   bool isUpdating          = false;
+  bool isHoming            = false;
 
   static void maintenanceLoop(void *pvParameters);
   static void ARDUINO_ISR_ATTR handleUpShift();
