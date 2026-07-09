@@ -212,7 +212,12 @@ void SS2K::maintenanceLoop(void* pvParameters) {
         webSocketAppender.Loop();
         bleTimer = millis();
       }
-      // Don't do these if updating and in spindown mode.
+      // moveStepper() always runs so the motor responds to app/shifter commands even while
+      // waiting for homing.  Only ERG and automatic mode changes are gated on spinDownFlag —
+      // those need calibrated travel limits before they can command the motor meaningfully.
+      ss2k->moveStepper();
+
+      // ERG, auto-homing scheduling, and mode modifiers are suppressed during spindown/homing.
       if (!spinBLEServer.spinDownFlag) {
         // If travel limits have never been set, schedule a full homing run.
         // The BLE client task already waits for cadence > 10 before executing goHome(),
@@ -225,7 +230,6 @@ void SS2K::maintenanceLoop(void* pvParameters) {
           spinBLEServer.spinDownFlag = 2;
           autoHomingScheduled        = true;
         } else {
-          ss2k->moveStepper();
           ss2k->FTMSModeShiftModifier();
           ergMode->runERG();
         }
