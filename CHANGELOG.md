@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+### Fixed
+- ERG stepper runaway: saturation detection previously required `getCurrentPosition() >= getMaxStep()`, but `maxStep` defaults to ±200 million steps when the device has not been homed, so the guard never fired and the motor would spin indefinitely when Zwift requested unachievable wattage. Detection is now time-based: if ERG has been pushing upward for 25 s without power responding, position is held and upward integral is zeroed regardless of where the configured stop is.
+- `resetPowerTableFlag` was never cleared after processing, causing the ERG task to delete and reset the power table on every loop tick once the flag was set. The flag is now cleared immediately before the work begins.
+- `resetPowerTableFlag` handler set `spinDownFlag = 0` after clearing hMin/hMax, allowing ERG to resume with no travel limits. `autoHomingScheduled` had already fired so auto-homing would not re-trigger in the same session. The handler now sets `spinDownFlag = 2` to schedule a full bidirectional homing run before ERG resumes.
+- WiFi OTA: `rebootFlag` was set inside `UPLOAD_FILE_END` before the `onComplete` callback could send its HTTP response, creating a race between the 2-second reboot countdown and TCP delivery of the result. `rebootFlag` is now set solely in `onComplete`, after the response is sent, and fires on both success and failure so the Update state machine is always clean.
+- WiFi OTA: `LittleFS.end()` was not called before writing the SPIFFS data partition, risking corruption of cached dirty pages. It is now called before `Update.begin(UPDATE_SIZE_UNKNOWN, U_SPIFFS)`.
+- WiFi OTA page showed "Success! You can leave this page." when bytes were fully *sent* to the device, before flashing had begun. Progress now shows "Flashing… please wait." during the write phase, and a proper `onload`/`onerror` handler displays the server's 200 OK / 500 FAIL response with guidance to reconnect after reboot.
+
 ### Changed
 
 ### Hardware

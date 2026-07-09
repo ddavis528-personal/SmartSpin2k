@@ -404,20 +404,18 @@ void HTTP_Server::start() {
   server.on(
       "/update", HTTP_POST,
       // This is the onComplete callback. It is executed ONLY after the upload is fully finished.
-      // This is the correct and only place to send the final response to the client.
+      // Send the response here — before rebootFlag, so the TCP stack has time to deliver it.
       []() {
         server.sendHeader("Connection", "close");
-        // Check if the Update process reported an error and send the final status.
         if (Update.hasError()) {
-          // You can get more specific error information if you want
-          // size_t len = Update.getErrorString(error_string_buffer, 128);
-          // server.send(500, "text/plain", error_string_buffer);
           server.send(500, "text/plain", "FAIL");
         } else {
           server.send(200, "text/plain", "OK");
-          // It's better to trigger the reboot after successfully notifying the client.
-          ss2k->rebootFlag = true;
         }
+        // Reboot regardless of success or failure so the Update state machine is clean.
+        // The main-loop reboot logic adds a 2-second grace period after this flag is set,
+        // which is enough time for the TCP stack to deliver the response above.
+        ss2k->rebootFlag = true;
       },
       // This is the onUpload callback. It handles the file data as it arrives.
       // It should not send any response to the client.
@@ -438,20 +436,20 @@ void HTTP_Server::start() {
             }
           } else if (upload.status == UPLOAD_FILE_END) {
             // Finalize the update. The true parameter tells it to flash the remaining buffer.
-            // DO NOT send a response here.
+            // DO NOT send a response here — the onComplete callback sends the response first,
+            // then the main loop's rebootFlag logic reboots after a grace period.
             if (Update.end(true)) {
               SS2K_LOG(HTTP_SERVER_LOG_TAG, "Firmware Upload Finished Successfully.");
             } else {
               Update.printError(Serial);
               SS2K_LOG(HTTP_SERVER_LOG_TAG, "Unknown OTA issue on end.");
             }
-            // The reboot will be triggered in the onComplete handler after the response.
-            // Setting this to reboot, even if upload fails.
-            ss2k->rebootFlag = true;
           }
         } else if (upload.filename == String("littlefs.bin").c_str()) {
           if (upload.status == UPLOAD_FILE_START) {
             SS2K_LOG(HTTP_SERVER_LOG_TAG, "Update Start: %s", upload.filename.c_str());
+            // Unmount LittleFS before raw-writing the SPIFFS partition to avoid corruption.
+            LittleFS.end();
             if (!Update.begin(UPDATE_SIZE_UNKNOWN, U_SPIFFS)) {
               Update.printError(Serial);
             }
