@@ -42,6 +42,11 @@ jobs:
           tag: ${{ steps.date.outputs.date }}
           message: "Automatic release ${{ steps.date.outputs.date }}"
           tag_exists_error: false
+      - name: Get build version
+        id: build_version
+        run: |
+          git fetch --tags --quiet
+          echo "version=$(git describe --tags --always)" >> $GITHUB_OUTPUT
       - uses: dorny/paths-filter@v3
         id: changes
         with:
@@ -64,37 +69,34 @@ jobs:
         run: platformio run -e release --target buildfs
       - name: Create artifacts
         run: |
-          7z a SmartSpin2kFirmware-${{ steps.date.outputs.date }}.bin.zip ./.pio/build/release/*.bin
+          7z a SmartSpin2kFirmware-${{ steps.build_version.outputs.version }}.bin.zip ./.pio/build/release/*.bin
       - name: Archive
         uses: actions/upload-artifact@v5
         with:
           name: all-artifacts
-          path: SmartSpin2kFirmware-${{ steps.date.outputs.date }}.bin.zip
+          path: SmartSpin2kFirmware-${{ steps.build_version.outputs.version }}.bin.zip
       - name: Download Artifacts
         uses: actions/download-artifact@v6
         with:
           name: all-artifacts
-      - name: Get tag info
-        id: tag_info
-        run: echo "SOURCE_TAG=${{ steps.date.outputs.date }}" >> $GITHUB_OUTPUT
       - name: Create release
         uses: softprops/action-gh-release@v2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          tag_name: ${{ steps.tag_info.outputs.SOURCE_TAG }}
-          name: SmartSpin2k ${{ steps.tag_info.outputs.SOURCE_TAG }}
+          tag_name: ${{ steps.build_version.outputs.version }}
+          name: SmartSpin2k ${{ steps.build_version.outputs.version }}
           draft: false
           prerelease: false
           generate_release_notes: true
           body: ${{ github.event.head_commit.message }}
           files: |
-            SmartSpin2kFirmware-${{ steps.date.outputs.date }}.bin.zip
+            SmartSpin2kFirmware-${{ steps.build_version.outputs.version }}.bin.zip
               update-changelog:
       - name: Update changelog
         uses: thomaseizinger/keep-a-changelog-new-release@v3
         with:
-          version: ${{ steps.date.outputs.date }}
+          version: ${{ steps.build_version.outputs.version }}
 
 
       
