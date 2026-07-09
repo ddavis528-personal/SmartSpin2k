@@ -480,11 +480,17 @@ void SS2K::FTMSModeShiftModifier() {
       {
         SS2K_LOG(MAIN_LOG_TAG, "Shift %+d pos %d tgt %d min %d max %d r_min %d r_max %d", shiftDelta, rtConfig->getShifterPosition(), ss2k->getTargetPosition(),
                  rtConfig->getMinStep(), rtConfig->getMaxStep(), rtConfig->getMinResistance(), rtConfig->getMaxResistance());
-        // Block Shifts further out of bounds
-        if (((ss2k->targetPosition + shiftDelta * userConfig->getShiftStep()) < rtConfig->getMinStep()) && (shiftDelta < 0)) {
+        // Block Shifts further out of bounds.
+        // Use only the gear component (gear * shiftStep) for the bounds check, not the composite
+        // targetPosition which also contains the incline term from Zwift's grade data.  Using the
+        // composite caused the incline offset to mask the true gear position: on an uphill the
+        // incline term kept targetPosition well above minStep even at gear 0, so the downshift
+        // blocker never fired and the gear display went negative.
+        int32_t nextGearPos = (int32_t)(rtConfig->getShifterPosition() + shiftDelta) * userConfig->getShiftStep();
+        if ((nextGearPos < rtConfig->getMinStep()) && (shiftDelta < 0)) {
           SS2K_LOG(MAIN_LOG_TAG, "Shift Blocked by stepper limits.");
           rtConfig->setShifterPosition(ss2k->lastShifterPosition);
-        } else if ((ss2k->targetPosition + shiftDelta * userConfig->getShiftStep()) > rtConfig->getMaxStep() && (shiftDelta > 0)) {
+        } else if ((nextGearPos > rtConfig->getMaxStep()) && (shiftDelta > 0)) {
           SS2K_LOG(MAIN_LOG_TAG, "Shift Blocked by stepper limits.");
           rtConfig->setShifterPosition(ss2k->lastShifterPosition);
         } else if (rtConfig->getHomed()) {
