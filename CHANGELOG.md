@@ -14,9 +14,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Hardware
 
 
-## [26.7.9]
+## [26.7.10]
 
-### Added
+### Fixed
+- ERG stepper runaway on downhill (or any segment where motor coupling slips): `ERG_GUARDRAILS` set `targetIncline = currentPosition + 1` whenever the stepper was above the ERG-computed position and watts were still below target. Once the physical coupling broke, the position counter climbed freely, watts could never respond, and the guardrail chased the counter upward indefinitely — completely bypassing the `maxStep` clamp that ERG applies to `newIncline`. The guardrail has been disabled; the ERG PID clamp (`newIncline` bounded to `[minStep, maxStep]`) and time-based saturation detection are sufficient and do not create runaway.
+
+## [26.7.9]
 
 ### Fixed
 - Calibration broken after moveStepper() was moved outside the spinDownFlag gate: goHome() runs in the BLE client task and calls stepper->move/moveTo directly; the main loop simultaneously calling moveStepper() fought it for stepper control. Added isHoming flag set at the start of goHome() (cleared on all exit paths) so moveStepper() yields during the homing sequence while still running freely when only waiting for homing to be triggered.

@@ -288,7 +288,10 @@ constexpr const char* ANY = "any";
 #define RUNTIMECONFIG_JSON_SIZE 1000 + DEBUG_LOG_BUFFER_SIZE
 
 // Uncomment to use guardrails for ERG mode in the stepper loop.
-#define ERG_GUARDRAILS
+// Disabled: creates runaway when motor coupling slips — guardrail sets targetIncline to
+// currentPosition+1 bypassing the maxStep clamp, causing infinite upward spin.
+// The ERG PID clamp (newIncline bounded to [minStep,maxStep]) and saturation detection are sufficient.
+// #define ERG_GUARDRAILS
 
 // Uncomment to enable the use of the power table for ERG mode.
 #define ERG_MODE_USE_POWER_TABLE
