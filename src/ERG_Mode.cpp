@@ -112,13 +112,15 @@ void ErgMode::runERG() {
     }
 
     if (ss2k->resetPowerTableFlag) {
+      ss2k->resetPowerTableFlag = false;  // clear before work so a concurrent set isn't lost
       LittleFS.remove(POWER_TABLE_FILENAME);
       powerTable->reset();
       userConfig->setHMin(INT32_MIN);
       userConfig->setHMax(INT32_MIN);
-      spinBLEServer.spinDownFlag = 0;
       rtConfig->setHomed(false);
       userConfig->saveToLittleFS();
+      // Wipe clears travel limits, so schedule a full homing run before resuming ERG.
+      spinBLEServer.spinDownFlag = 2;
     }
     loopCounter++;
   }
