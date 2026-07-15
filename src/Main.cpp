@@ -481,12 +481,12 @@ void SS2K::FTMSModeShiftModifier() {
         SS2K_LOG(MAIN_LOG_TAG, "Shift %+d pos %d tgt %d min %d max %d r_min %d r_max %d", shiftDelta, rtConfig->getShifterPosition(), ss2k->getTargetPosition(),
                  rtConfig->getMinStep(), rtConfig->getMaxStep(), rtConfig->getMinResistance(), rtConfig->getMaxResistance());
         // Block Shifts further out of bounds.
-        // Use only the gear component (gear * shiftStep) for the bounds check, not the composite
-        // targetPosition which also contains the incline term from Zwift's grade data.  Using the
-        // composite caused the incline offset to mask the true gear position: on an uphill the
-        // incline term kept targetPosition well above minStep even at gear 0, so the downshift
-        // blocker never fired and the gear display went negative.
-        int32_t nextGearPos = (int32_t)(rtConfig->getShifterPosition() + shiftDelta) * userConfig->getShiftStep();
+        // Use the gear component alone (lastShifterPosition + delta) * shiftStep for the bounds
+        // check, not the composite targetPosition which also contains Zwift incline data.
+        // lastShifterPosition is the pre-shift gear baseline; adding shiftDelta gives exactly
+        // the position of the proposed new gear.  Using getShifterPosition() (already shifted)
+        // instead would double-count the delta and incorrectly block valid boundary shifts.
+        int32_t nextGearPos = (int32_t)(ss2k->lastShifterPosition + shiftDelta) * userConfig->getShiftStep();
         if ((nextGearPos < rtConfig->getMinStep()) && (shiftDelta < 0)) {
           SS2K_LOG(MAIN_LOG_TAG, "Shift Blocked by stepper limits.");
           rtConfig->setShifterPosition(ss2k->lastShifterPosition);
@@ -552,6 +552,14 @@ void SS2K::handleShiftButtons() {
 
   } else if (!downButtonIsPressed && ss2k->downButtonState == PRESSED) {
     ss2k->downButtonState = RELEASED;
+  }
+
+  // FTMSModeShiftModifier() is gated by spinDownFlag and cannot enforce gear limits until
+  // homing completes.  Before homing, minStep is at its default (-200M), so gear -1 would
+  // command the motor 1200 steps in the decreasing direction — which physically drives toward
+  // max resistance.  Floor the gear at 0 until we have a calibrated home position.
+  if (rtConfig->getShifterPosition() < 0 && !rtConfig->getHomed()) {
+    rtConfig->setShifterPosition(0);
   }
 }
 
