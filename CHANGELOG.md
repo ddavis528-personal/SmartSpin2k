@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+### Changed
+
+### Hardware
+
+
+## [26.7.9-4-gad2a4494-1-g55c52874]
+
 ### Fixed
 - Virtual shifter gear display going negative in simulation mode: the shift-blocker used the composite `targetPosition` (gear × shiftStep + incline × inclineMultiplier) as its bounds reference. On an uphill in Zwift, the incline term kept the composite position well above minStep even at gear 0, so the downshift blocker never fired and repeated downshifts drove the gear into negative values. The check now uses only the pure gear component (`nextGear × shiftStep`) so the floor at gear 0 (minStep) is correctly enforced regardless of the current Zwift grade.
 - Fixed off-by-one in the gear-position blocker: `nextGearPos` was computed as `(currentGear + shiftDelta) × shiftStep`, which double-counts the delta because `currentGear` already reflects the shift applied by `handleShiftButtons()`. Changed to `(lastShifterPosition + shiftDelta) × shiftStep` so the check evaluates exactly the proposed new gear's position; this also fixes valid shifts to the exact minStep/maxStep boundary being incorrectly blocked.
