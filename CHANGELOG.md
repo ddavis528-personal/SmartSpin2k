@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 - Virtual shifter gear display going negative in simulation mode: the shift-blocker used the composite `targetPosition` (gear × shiftStep + incline × inclineMultiplier) as its bounds reference. On an uphill in Zwift, the incline term kept the composite position well above minStep even at gear 0, so the downshift blocker never fired and repeated downshifts drove the gear into negative values. The check now uses only the pure gear component (`nextGear × shiftStep`) so the floor at gear 0 (minStep) is correctly enforced regardless of the current Zwift grade.
+- Fixed off-by-one in the gear-position blocker: `nextGearPos` was computed as `(currentGear + shiftDelta) × shiftStep`, which double-counts the delta because `currentGear` already reflects the shift applied by `handleShiftButtons()`. Changed to `(lastShifterPosition + shiftDelta) × shiftStep` so the check evaluates exactly the proposed new gear's position; this also fixes valid shifts to the exact minStep/maxStep boundary being incorrectly blocked.
+- Downshifting below gear 0 before homing now clamped to gear 0 in `handleShiftButtons()`. While `spinDownFlag != 0`, `FTMSModeShiftModifier()` is gated and cannot enforce gear limits; with the default `minStep = -200,000,000` the motor was commanded 1200 steps in the decreasing direction (physically toward max resistance) on the very next maintenance-loop tick. The pre-homing floor prevents the motor from moving in an uncalibrated direction before travel limits are established.
 
 ### Added
 
