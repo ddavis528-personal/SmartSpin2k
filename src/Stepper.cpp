@@ -299,7 +299,11 @@ void SS2K::_findFTMSHome(bool bothDirections) {
   int i                     = 0;
   const int iMax            = 600;
 
-  auto runHomingSweep = [&](int targetResistance, const char* logTemplate, bool notifySpinDown) {
+  // Returns false when the sweep timed out or the user aborted; callers must treat that as a
+  // failed homing run. Previously this lambda returned void, so a timeout only exited the
+  // sweep — the function then carried on, zeroed the position counter, and set homed = true
+  // with garbage travel limits.
+  auto runHomingSweep = [&](int targetResistance, const char* logTemplate, bool notifySpinDown) -> bool {
     timer                   = millis();
     i                       = 0;
     int32_t lastPosition    = ss2k->getCurrentPosition();
@@ -308,13 +312,13 @@ void SS2K::_findFTMSHome(bool bothDirections) {
       if (millis() - timer > HOME_TIMEOUT) {
         SS2K_LOG(MAIN_LOG_TAG, "FTMS Homing timed out!");
         setupTMCStepperDriver(true);  // Restore normal driver settings
-        return;
+        return false;
       }
       if (rtConfig->getShifterPosition() != ss2k->lastShifterPosition) {
         SS2K_LOG(MAIN_LOG_TAG, "FTMS Homing aborted by user.");
         stepper->forceStop();
         setupTMCStepperDriver(true);  // Restore normal driver settings
-        return;
+        return false;
       }
       ss2k->setCurrentPosition(stepper->getCurrentPosition());
       rtConfig->resistance.setTarget(targetResistance);
@@ -343,15 +347,23 @@ void SS2K::_findFTMSHome(bool bothDirections) {
     bool travelSatisfied = (travelDelta >= minTravel);
     SS2K_LOG(MAIN_LOG_TAG, "FTMS Homing sweep exit: target=%d current=%d reached=%s iter=%d/%d travelΔ=%d minTravel=%d travelMet=%s", targetResistance,
              rtConfig->resistance.getValue(), reachedTarget ? "true" : "false", i, iMax, travelDelta, minTravel, travelSatisfied ? "true" : "false");
+    return true;
   };
 
+  // Invalidate any previous homing result for the duration of this run so a failed sweep can
+  // never leave stale limits marked as valid.
+  rtConfig->setHomed(false);
   ss2k->updateStepperSpeed(1500);  // Use a slow-medium speed for homing
 
   // first back off of the stop if we're already there
   int midTarget = round((rtConfig->resistance.getMax() - rtConfig->resistance.getMin()) / 4.0f);
   rtConfig->resistance.setTarget(midTarget);
-  runHomingSweep(midTarget, nullptr, false);
-  runHomingSweep(rtConfig->resistance.getMin(), "Homing to Min Resistance... Current: %d, Target: %d", false);
+  if (!runHomingSweep(midTarget, nullptr, false)) {
+    return;
+  }
+  if (!runHomingSweep(rtConfig->resistance.getMin(), "Homing to Min Resistance... Current: %d, Target: %d", false)) {
+    return;
+  }
   lastResistance = rtConfig->resistance.getValue();
 
   // log found positions
@@ -362,7 +374,9 @@ void SS2K::_findFTMSHome(bool bothDirections) {
   rtConfig->setTargetIncline(0);
   rtConfig->setMinStep(0);
   if (bothDirections) {
-    runHomingSweep(rtConfig->resistance.getMax(), "Homing to Max Resistance... Current: %d, Target: %d", true);
+    if (!runHomingSweep(rtConfig->resistance.getMax(), "Homing to Max Resistance... Current: %d, Target: %d", true)) {
+      return;
+    }
     rtConfig->setMaxStep(stepper->getCurrentPosition());
     userConfig->setHMin(rtConfig->getMinStep());
     userConfig->setHMax(rtConfig->getMaxStep());

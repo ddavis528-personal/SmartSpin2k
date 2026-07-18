@@ -60,7 +60,9 @@ using BLEServices::SUPPORTED_SERVICES;
 
 // macros to convert different types of bytes into int The naming here sucks and
 // should be fixed.
-#define bytes_to_s16(MSB, LSB) (((signed int)((signed char)MSB))) << 8 | (((signed char)LSB))
+// bytes_to_s16: assemble both bytes unsigned, then reinterpret the 16-bit result as signed.
+// Sign-extending either input byte individually corrupts any value whose low byte is >= 0x80.
+#define bytes_to_s16(MSB, LSB) ((int)(int16_t)((((uint16_t)((unsigned char)(MSB))) << 8) | ((uint16_t)((unsigned char)(LSB)))))
 // bytes_to_u16: both bytes treated as unsigned so MSB ≥ 0x80 is never sign-extended.
 #define bytes_to_u16(MSB, LSB) (((int)((unsigned char)MSB))) << 8 | (((unsigned char)LSB))
 #define bytes_to_int(MSB, LSB) ((static_cast<int>((unsigned char)MSB))) << 8 | (((unsigned char)LSB))

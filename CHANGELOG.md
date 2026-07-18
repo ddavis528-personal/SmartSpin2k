@@ -8,32 +8,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
+- **Resistance runaway on Zwift downhills**: the FTMS `SetIndoorBikeSimulationParameters` handler decoded the signed sint16 grade field with an unsigned macro, so any negative grade (e.g. -1.00% = `0xFF9C`) became a huge positive incline (+65436). `moveStepper()` multiplied that by `inclineMultiplier`, commanding ~+458,000 steps and driving the knob to maximum resistance for the entire descent (and effectively without limit whenever homing had not completed, since default travel limits are ±200M steps). The grade is now decoded signed and clamped to ±40%. This was very likely the true cause of the "downhill runaway" previously attributed to `ERG_GUARDRAILS` (removed in 26.7.10) — grade is not even used in ERG mode.
+- `bytes_to_s16` macro sign-extended the *low* byte, corrupting any decode whose LSB was ≥ 0x80 (e.g. `0x019C` = 412 decoded as -100). Rewritten to assemble both bytes unsigned and reinterpret the 16-bit result as signed.
+- `shifterPosition` BLE write decoded unsigned: a `-1` gear write from an app became gear 65535, which before homing commanded a ~78-million-step move toward max resistance. The recent app-side floor only masked this for up-to-date apps; the firmware now decodes the gear as signed so its own floor/bounds logic applies.
+- `targetIncline` BLE custom-characteristic write decoded unsigned, with the same negative-becomes-huge failure mode.
+- Homing failure no longer unlocks unprotected riding: the BLE client task cleared `spinDownFlag` even when `goHome()` failed, re-enabling ERG and shift handling with the default ±200M travel limits. The flag is now cleared only when homing succeeded; a failed attempt retries after ~2 s of continued cadence. The post-homing "middle gear" preset is likewise applied only on success.
+- FTMS homing sweeps (`_findFTMSHome`) treated a timeout or user abort as success: the sweep lambda's `return` only exited the lambda, after which the function zeroed the position counter and set `homed = true` with garbage travel limits. Sweep failures now propagate and abort the run with `homed = false` (falling back to StallGuard homing where supported), and any previous homing result is invalidated for the duration of the run.
+
+### Added
+
+### Changed
+
+### Hardware
+
+## [26.7.18]
+
+### Fixed
 - Virtual shifter gear display going negative in simulation mode: the shift-blocker used the composite `targetPosition` (gear × shiftStep + incline × inclineMultiplier) as its bounds reference. On an uphill in Zwift, the incline term kept the composite position well above minStep even at gear 0, so the downshift blocker never fired and repeated downshifts drove the gear into negative values. The check now uses only the pure gear component (`nextGear × shiftStep`) so the floor at gear 0 (minStep) is correctly enforced regardless of the current Zwift grade.
 - Fixed off-by-one in the gear-position blocker: `nextGearPos` was computed as `(currentGear + shiftDelta) × shiftStep`, which double-counts the delta because `currentGear` already reflects the shift applied by `handleShiftButtons()`. Changed to `(lastShifterPosition + shiftDelta) × shiftStep` so the check evaluates exactly the proposed new gear's position; this also fixes valid shifts to the exact minStep/maxStep boundary being incorrectly blocked.
 - Downshifting below gear 0 before homing now clamped to gear 0 in `handleShiftButtons()`. While `spinDownFlag != 0`, `FTMSModeShiftModifier()` is gated and cannot enforce gear limits; with the default `minStep = -200,000,000` the motor was commanded 1200 steps in the decreasing direction (physically toward max resistance) on the very next maintenance-loop tick. The pre-homing floor prevents the motor from moving in an uncalibrated direction before travel limits are established.
 
 ### Added
-
-### Changed
-
-### Hardware
-
-
-## [26.7.9]
-
-### Added
-
-### Changed
-
-### Hardware
-
-
-## [26.7.10]
-
-### Fixed
-- ERG stepper runaway on downhill (or any segment where motor coupling slips): `ERG_GUARDRAILS` set `targetIncline = currentPosition + 1` whenever the stepper was above the ERG-computed position and watts were still below target. Once the physical coupling broke, the position counter climbed freely, watts could never respond, and the guardrail chased the counter upward indefinitely — completely bypassing the `maxStep` clamp that ERG applies to `newIncline`. The guardrail has been disabled; the ERG PID clamp (`newIncline` bounded to `[minStep, maxStep]`) and time-based saturation detection are sufficient and do not create runaway.
-
-## [26.7.9]
 
 ### Changed
 

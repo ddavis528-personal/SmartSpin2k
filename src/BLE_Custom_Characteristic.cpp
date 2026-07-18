@@ -198,7 +198,8 @@ void BLE_ss2kCustomCharacteristic::process(std::string rxValue) {
       }
       if (rxValue[0] == cc_write && rxValue.length() >= 4) {
         returnValue[0] = cc_success;
-        rtConfig->setTargetIncline(bytes_to_u16(rxValue[3], rxValue[2]) / 100);
+        // Incline is signed; an unsigned decode turns negative grades into huge positives.
+        rtConfig->setTargetIncline(bytes_to_s16(rxValue[3], rxValue[2]) / 100);
         LOG_BUF_APPEND("(%f)", rtConfig->getTargetIncline());
       }
     } break;
@@ -507,7 +508,10 @@ void BLE_ss2kCustomCharacteristic::process(std::string rxValue) {
       }
       if (rxValue[0] == cc_write && rxValue.length() >= 4) {
         returnValue[0] = cc_success;
-        rtConfig->setShifterPosition(bytes_to_u16(rxValue[3], rxValue[2]));
+        // Gear is signed; an unsigned decode turned a -1 write from an app into gear 65535,
+        // which (pre-homing, with ±200M default travel limits) commanded a multi-million-step
+        // move toward max resistance. Decode signed so the existing gear floor/bounds apply.
+        rtConfig->setShifterPosition(bytes_to_s16(rxValue[3], rxValue[2]));
         LOG_BUF_APPEND("(%d)", rtConfig->getShifterPosition());
 #ifdef CUSTOM_CHAR_DEBUG
         SS2K_LOG(CUSTOM_CHAR_LOG_TAG, "%s", logBuf);

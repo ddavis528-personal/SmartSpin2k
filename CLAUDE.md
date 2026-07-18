@@ -5,7 +5,7 @@
 ESP32 firmware for a DIY device that motorizes the resistance knob on any spin bike, turning it into a smart trainer compatible with Zwift, TrainerRoad, and other cycling apps. Supports BLE (FTMS, Zwift, OpenBikeControl services), ERG mode, power calibration, and Peloton serial integration.
 
 **Companion app repo:** `ddavis528-personal/ss2kconfigapp`
-**Current version:** `26.7.10` (latest released); `[Unreleased]` fixes pending.
+**Current version:** `26.7.18` (latest released); `[Unreleased]` runaway/homing fixes pending.
 **Build system:** PlatformIO (Arduino framework for ESP32)
 **Primary branch:** `develop`
 
@@ -59,7 +59,13 @@ CHANGELOG.md
 
 ## Recent Changes (as of 2026-07-18)
 
-### `src/Main.cpp` — virtual shifter bug fixes
+### Runaway-resistance root cause fixed (deep review round)
+- **FTMS SIM grade sign bug (`BLE_Fitness_Machine_Service.cpp`)**: `SetIndoorBikeSimulationParameters` decoded the signed grade with `bytes_to_u16`, so every Zwift downhill (-1% = 0xFF9C) became +65436 → ~+458k-step target → knob slammed to max resistance. Now decoded signed (`bytes_to_s16`) and clamped to ±4000 (±40%). This was the real "downhill runaway" previously blamed on ERG_GUARDRAILS.
+- **`bytes_to_s16` macro fixed** (`BLE_Common.h`): old macro sign-extended the low byte, corrupting values with LSB ≥ 0x80.
+- **Signed decodes** for `shifterPosition` and `targetIncline` BLE writes (`BLE_Custom_Characteristic.cpp`): -1 no longer becomes 65535.
+- **Sticky homing failure**: `BLE_Client.cpp` only clears `spinDownFlag` when `goHome()` succeeded (failed homing retries after ~2 s of cadence); `_findFTMSHome()` sweep timeouts/aborts now propagate instead of finalizing as homed with garbage limits.
+
+### `src/Main.cpp` — virtual shifter bug fixes (26.7.18)
 - **Off-by-one in `FTMSModeShiftModifier()`**: Used `getShifterPosition() + shiftDelta` for `nextGearPos`; replaced with `lastShifterPosition + shiftDelta` to avoid double-counting a mid-flight update.
 - **Gear floor before homing**: Clamped gear to `0` minimum even when `hMin = INT32_MIN`, so the motor can't be driven below the physical zero stop before calibration.
 

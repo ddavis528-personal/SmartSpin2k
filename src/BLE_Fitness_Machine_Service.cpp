@@ -301,13 +301,17 @@ void BLE_Fitness_Machine_Service::processFTMSWrite() {
         case FitnessMachineControlPointProcedure::SetIndoorBikeSimulationParameters: {  // sim mode
           rtConfig->setFTMSMode((uint8_t)rxValue[0]);
           returnValue[2] = FitnessMachineControlPointResultCode::Success;  // 0x01;
-          signed char buf[2];
           // int16_t windSpeed        = (rxValue[2] << 8) + rxValue[1];
-          buf[0] = rxValue[3];  // (Least significant byte)
-          buf[1] = rxValue[4];  // (Most significant byte)
           // int8_t rollingResistance = rxValue[5];
           // int8_t windResistance    = rxValue[6];
-          port = bytes_to_u16(buf[1], buf[0]);
+          // Grade is a signed sint16 in 0.01% units. Decoding it unsigned turned every
+          // downhill (e.g. -1.00% = 0xFF9C) into a huge positive incline (+65436), which
+          // moveStepper() multiplied by inclineMultiplier and drove the knob to max travel.
+          port = bytes_to_s16(rxValue[4], rxValue[3]);
+          // Physically meaningful grades are well inside ±40%; clamp so a corrupt packet can
+          // never command more than ±4000 * inclineMultiplier steps of incline offset.
+          if (port > 4000) port = 4000;
+          if (port < -4000) port = -4000;
           rtConfig->setTargetIncline(port);
           logBufLength += snprintf(logBuf + logBufLength, kLogBufCapacity - logBufLength, "-> Sim Mode Incline %2f", rtConfig->getTargetIncline() / 100);
           ftmsStatus = {FitnessMachineStatus::IndoorBikeSimulationParametersChanged,

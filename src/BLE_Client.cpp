@@ -233,9 +233,19 @@ void bleClientTask(void* pvParameters) {
           ss2k->goHome(true);
         } else {  // Startup Homing
           ss2k->goHome(false);
-          rtConfig->setShifterPosition(8);  // Set to middle position after homing on startup
+          if (rtConfig->getHomed()) {
+            rtConfig->setShifterPosition(8);  // Set to middle position after homing on startup
+          }
         }
-        spinBLEServer.spinDownFlag = 0;
+        // Only clear the flag when homing actually succeeded. Clearing it on failure re-enabled
+        // ERG and shift handling with the default ±200M travel limits, so a single failed homing
+        // run left the motor free to run essentially unbounded. Keeping the flag set means the
+        // homing attempt repeats after another ~2 s of cadence instead.
+        if (rtConfig->getHomed()) {
+          spinBLEServer.spinDownFlag = 0;
+        } else {
+          SS2K_LOG(BLE_CLIENT_LOG_TAG, "Homing failed; keeping spinDownFlag set to retry.");
+        }
       }
     }
   }
