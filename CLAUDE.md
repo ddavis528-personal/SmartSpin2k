@@ -73,6 +73,16 @@ CHANGELOG.md
 
 ## Known Issues / Next Steps
 
+### Post-test-ride backlog (2026-07-18 ride on fixed builds; address in priority order)
+Test-ride verdict: no runaway; SIM behavior gradual and predictable. Remaining items:
+1. **ERG guardrail excursions**: brief grinding/slippage at travel limits during ERG, self-recovering. Likely physical-vs-counter drift after coupler slip (clamps use the counter, the knob is elsewhere). Consider load-based backoff (StallGuard during normal moves), margin below hMax, periodic min re-verify.
+2. **Calibration UX**: calibration is slower now (sticky retry on failure) with zero feedback. Expose calibration state (spinDownFlag/isHoming) over the custom BLE characteristic + notify transitions; add abort via 5-second hold of either physical shifter button (needs an abort latch that stops the retry loop, not just one sweep). App shows "Calibrating…" + abort hint instead of the gear number.
+3. **Gear denominator regressed** in app during ride — app requests only shiftStep on shifter-screen init; firmware may not notify hMin/hMax when homing completes. Request all three on screen open + notify from firmware post-homing.
+4. **K / power-curve training too slow or absent**: K bump only fires after sustained saturation at the configured hard stop; power-table training needs connectedPM + cadence. Rework triggers, consider fitting from ordinary ride data, add training-progress visibility.
+5. **Manual min/max gear trim from app** (fine-tune after calibration): firmware already accepts hMin/hMax writes (0x2A/0x2B); needs a friendly UI on the shifter screen + guards (hMin < hMax, block during calibration).
+6. **WiFi OTA Android still failing** (low priority): check whether manual-IP path was tried; consider native NsdManager via platform channel instead of the multicast_dns package; surface per-candidate failure reasons in the UI.
+7. **minWatts not used as minimum stepper floor**: `PowerTable::setStepperMinMax()` returns early whenever hMin/hMax are set, so the minWatts-derived floor never applies once homed. Design: effective minStep = max(hMin, lookup(minWatts)) once table data exists.
+
 ### Potential improvements
 - **Gear ceiling from app**: The app now floors gear writes at 0 but does not yet cap at `maxGear`. The firmware enforces the ceiling, so this is cosmetic — but a symmetric app-side cap would give cleaner UX.
 - **`spinDownFlag` UX**: There is no in-app indication that homing is pending (`spinDownFlag != 0`). Gear changes are silently queued. A status field or BLE notification when homing completes would improve UX.
