@@ -82,6 +82,7 @@ Test-ride verdict: no runaway; SIM behavior gradual and predictable. Remaining i
 5. **Manual min/max gear trim from app** (fine-tune after calibration): firmware already accepts hMin/hMax writes (0x2A/0x2B); needs a friendly UI on the shifter screen + guards (hMin < hMax, block during calibration).
 6. **WiFi OTA Android still failing** (low priority): check whether manual-IP path was tried; consider native NsdManager via platform channel instead of the multicast_dns package; surface per-candidate failure reasons in the UI.
 7. **minWatts not used as minimum stepper floor**: `PowerTable::setStepperMinMax()` returns early whenever hMin/hMax are set, so the minWatts-derived floor never applies once homed. Design: effective minStep = max(hMin, lookup(minWatts)) once table data exists.
+8. **Cadence scale factor config** (user's bike reads low, can't reach ERG workout RPM targets): add a userConfig correction factor analogous to powerCorrectionFactor — settings field + BLE characteristic + app settings row. Apply at ingestion (SensorCollector) so the scaled cadence flows consistently to FTMS/Zwift broadcast, the ERG minimum-cadence gate, the homing cadence trigger, and power-table cadence keys. Changing it materially should downgrade power-table confidence (cadence-keyed rows shift).
 
 ### Potential improvements
 - **Gear ceiling from app**: The app now floors gear writes at 0 but does not yet cap at `maxGear`. The firmware enforces the ceiling, so this is cosmetic — but a symmetric app-side cap would give cleaner UX.
