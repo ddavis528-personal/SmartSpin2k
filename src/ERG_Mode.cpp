@@ -172,6 +172,12 @@ void ErgMode::computeErg() {
   bool isUserSpinning = this->_userIsSpinning(rtConfig->cad.getValue(), ss2k->getCurrentPosition());
   if (!isUserSpinning) {
     SS2K_LOG(ERG_MODE_LOG_TAG, "ERG Mode but no User Spin");
+    // Not pedaling: drop out of ERG into SIM at a near-flat grade so the motor parks at the
+    // current gear position instead of chasing an unreachable power target. (This used to be
+    // a hidden side effect inside _userIsSpinning.)
+    rtConfig->setFTMSMode(FitnessMachineControlPointProcedure::SetIndoorBikeSimulationParameters);
+    rtConfig->setTargetIncline(1.0f);
+    this->integral = 0.0;  // not pedaling; don't let error accumulate while idle.
     return;
   }
 
@@ -386,7 +392,9 @@ int32_t ErgMode::_inSetpointState() {
           float newK = currentK + ERG_MODEL_K_BUMP_DELTA;
           if (newK > ERG_MODEL_K_MAX) newK = ERG_MODEL_K_MAX;
           userConfig->setHighEndPowerScaleFactor(newK);
-          userConfig->saveToLittleFS();
+          // Defer the flash write to the maintenance loop's saveFlag handler rather than
+          // blocking the control path with a LittleFS write mid-ride.
+          ss2k->saveFlag = true;
           SS2K_LOG(ERG_MODE_LOG_TAG, "K bumped to %.2f (at physical max)", newK);
         }
       }
@@ -405,7 +413,7 @@ int32_t ErgMode::_inSetpointState() {
 }
 
 void ErgMode::_updateValues(float newIncline) {
-  rtConfig->setTargetIncline(newIncline);
+  rtConfig->setControlTargetPosition(newIncline);
   _writeLog(ss2k->getCurrentPosition(), newIncline, this->prevWatts.getTarget(), rtConfig->watts.getTarget(), this->prevWatts.getValue(), rtConfig->watts.getValue(),
             this->prevCadence.getValue(), rtConfig->cad.getValue());
 
@@ -413,12 +421,12 @@ void ErgMode::_updateValues(float newIncline) {
   this->prevCadence = rtConfig->cad;
 }
 
+// Pure predicate: reports whether the user is pedaling hard enough for ERG control.
+// The caller (computeErg) decides how to react — this function no longer flips the
+// global FTMS mode or rewrites targets as a hidden side effect.
 bool ErgMode::_userIsSpinning(int cadence, float incline) {
   if (cadence <= MIN_ERG_CADENCE) {
-    rtConfig->setFTMSMode(FitnessMachineControlPointProcedure::SetIndoorBikeSimulationParameters);
-    rtConfig->setTargetIncline(1.0f);
-    this->integral = 0.0;  // not pedaling; don't let error accumulate while idle.
-    return false;          // Cadence too low, nothing to do here
+    return false;  // Cadence too low, nothing to do here
   }
   this->engineStopped = false;
   return true;

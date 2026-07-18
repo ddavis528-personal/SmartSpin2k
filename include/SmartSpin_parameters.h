@@ -67,6 +67,11 @@ class Measurement {
 class RuntimeParameters {
  private:
   double targetIncline = 0.0;
+  // Absolute stepper position commanded by the ERG PID / resistance-mode controller.
+  // Kept separate from targetIncline, which holds the SIM-mode *grade* in 0.01% units —
+  // the two were historically the same variable, so a mode flip could misinterpret a
+  // stale value by a factor of thousands (grade × inclineMultiplier vs raw steps).
+  double controlTargetPosition = 0.0;
   float simulatedSpeed = 0.0;
   uint8_t FTMSMode     = 0x00;
   int shifterPosition  = 0;
@@ -91,6 +96,9 @@ class RuntimeParameters {
 
   void setTargetIncline(float inc) { targetIncline = inc; }
   float getTargetIncline() { return targetIncline; }
+
+  void setControlTargetPosition(float pos) { controlTargetPosition = pos; }
+  float getControlTargetPosition() { return controlTargetPosition; }
 
   void setSimulatedSpeed(float spd) { simulatedSpeed = spd; }
   float getSimulatedSpeed() { return simulatedSpeed; }

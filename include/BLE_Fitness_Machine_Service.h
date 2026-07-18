@@ -20,6 +20,12 @@ class BLE_Fitness_Machine_Service {
   
  private:
   int calculateResistanceFromPosition();
+  // True when a bike is actively reporting real resistance (fresh reading, not simulated).
+  // Single definition for a check that was previously duplicated inline in update() and
+  // the SetTargetResistanceLevel handler.
+  static bool hasResistanceReporting();
+  // Effective travel limits: homing values when known, otherwise the runtime min/max steps.
+  static void getEffectiveTravelLimits(int32_t &minPos, int32_t &maxPos);
   BLEService *pFitnessMachineService;
   BLECharacteristic *fitnessMachineFeature;
   BLECharacteristic *fitnessMachineIndoorBikeData;

@@ -18,6 +18,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 ### Changed
+- **Split `rtConfig->targetIncline` into two variables.** It previously held three incompatible quantities depending on mode — the SIM-mode grade (0.01% units, multiplied by `inclineMultiplier`), the ERG PID's absolute stepper position, and a magic `1.0f` — so any unexpected mode flip misinterpreted a stale value by a factor of thousands. `targetIncline` now holds only the SIM grade; a new `controlTargetPosition` carries the absolute position commanded by ERG and resistance modes (including homing sweeps and the `ERG_GUARDRAILS` block).
+- `ErgMode::_userIsSpinning()` is now a pure predicate: the cadence-dropout reaction (switch to SIM at near-flat grade, reset PID integral) moved into `computeErg()` where it is visible, instead of being a hidden side effect of a boolean check.
+- `BLE_simulatedTargetWatts` (0x28) writes now set the ERG *target* watts; a copy-paste from the `simulatedWatts` case made them overwrite the measured power value instead.
+- Deduplicated the "bike reports real resistance" check and the hMin/hMax travel-limit fallback into `BLE_Fitness_Machine_Service::hasResistanceReporting()` / `getEffectiveTravelLimits()`; removed the dead resistance-to-position TODO block from the `SetTargetResistanceLevel` handler.
+- ERG saturation K-bump no longer calls `saveToLittleFS()` from the control path; it defers to the maintenance loop's `saveFlag` handler.
+- `resetIfShiftersHeld()` formats LittleFS once instead of 20 times in a loop (~8 s faster, less flash wear).
+- Startup homing now parks at the middle of the *calibrated* gear range (`(hMax − hMin) / shiftStep / 2`) instead of hardcoded gear 8, which could land near max resistance on short-travel bikes.
 
 ### Hardware
 

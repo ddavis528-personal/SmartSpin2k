@@ -109,12 +109,7 @@ void BLE_Fitness_Machine_Service::update() {
 
   // Add resistance
   int resistanceValue;
-  // Check if bike has resistance reporting capability or resistance simulation enabled
-  bool hasResistanceReporting = (!rtConfig->resistance.getSimulate() && 
-                                (rtConfig->resistance.getTimestamp() > 0 && 
-                                 (millis() - rtConfig->resistance.getTimestamp()) < 5000));
-  
-  if (hasResistanceReporting) {
+  if (hasResistanceReporting()) {
     // Use reported resistance value
     resistanceValue = rtConfig->resistance.getValue();
   } else {
@@ -218,27 +213,9 @@ void BLE_Fitness_Machine_Service::processFTMSWrite() {
 
           if (requestedResistance >= rtConfig->getMinResistance() && requestedResistance <= rtConfig->getMaxResistance()) {
             rtConfig->resistance.setTarget(requestedResistance);
-            
-            // For bikes that don't report resistance, calculate stepper position from resistance level (0-100)
-            bool hasResistanceReporting = (!rtConfig->resistance.getSimulate() && 
-                                          (rtConfig->resistance.getTimestamp() > 0 && 
-                                           (millis() - rtConfig->resistance.getTimestamp()) < 5000));
-            
-            if (!hasResistanceReporting) {
-              int32_t minPos, maxPos;
-              
-              // Use homing values if available, otherwise use stepper min/max
-              if (userConfig->getHMin() != INT32_MIN && userConfig->getHMax() != INT32_MIN) {
-                minPos = userConfig->getHMin();
-                maxPos = userConfig->getHMax();
-              } else {
-                minPos = rtConfig->getMinStep();
-                maxPos = rtConfig->getMaxStep();
-              }
-              
-              // TODO: Implement calculation of target position from resistance percentage if resistance reporting is unavailable.
-            }
-            
+            // _resistanceMove() (called from moveStepper while in this mode) converts the
+            // target percentage into a stepper position for bikes without resistance
+            // reporting; a dead duplicate of that lookup used to live here behind a TODO.
             returnValue[2] = FitnessMachineControlPointResultCode::Success;
             logBufLength += snprintf(logBuf + logBufLength, kLogBufCapacity - logBufLength, "-> Resistance Mode: %d", rtConfig->resistance.getTarget());
           } else {
@@ -402,11 +379,11 @@ bool BLE_Fitness_Machine_Service::spinDown(uint8_t response) {
   return true;
 }
 
-// Calculate resistance from stepper position for bikes that don't natively report resistance
-int BLE_Fitness_Machine_Service::calculateResistanceFromPosition() {
-  int32_t currentPosition = ss2k->getCurrentPosition();
-  int32_t minPos, maxPos;
-  
+bool BLE_Fitness_Machine_Service::hasResistanceReporting() {
+  return !rtConfig->resistance.getSimulate() && rtConfig->resistance.getTimestamp() > 0 && (millis() - rtConfig->resistance.getTimestamp()) < 5000;
+}
+
+void BLE_Fitness_Machine_Service::getEffectiveTravelLimits(int32_t &minPos, int32_t &maxPos) {
   // Use homing values if available, otherwise use stepper min/max
   if (userConfig->getHMin() != INT32_MIN && userConfig->getHMax() != INT32_MIN) {
     minPos = userConfig->getHMin();
@@ -415,7 +392,14 @@ int BLE_Fitness_Machine_Service::calculateResistanceFromPosition() {
     minPos = rtConfig->getMinStep();
     maxPos = rtConfig->getMaxStep();
   }
-  
+}
+
+// Calculate resistance from stepper position for bikes that don't natively report resistance
+int BLE_Fitness_Machine_Service::calculateResistanceFromPosition() {
+  int32_t currentPosition = ss2k->getCurrentPosition();
+  int32_t minPos, maxPos;
+  getEffectiveTravelLimits(minPos, maxPos);
+
   // Ensure we have valid range
   if (maxPos <= minPos) {
     return 50; // Default to mid-point resistance if range is invalid

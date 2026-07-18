@@ -29,15 +29,15 @@ void SS2K::moveStepper() {
       if ((rtConfig->getFTMSMode() == FitnessMachineControlPointProcedure::SetTargetPower)) {
 #ifdef ERG_GUARDRAILS
         // don't drive lower out of bounds. This is a final test that should never happen.
-        if ((stepper->getCurrentPosition() > rtConfig->getTargetIncline()) && (rtConfig->watts.getValue() < rtConfig->watts.getTarget())) {
-          rtConfig->setTargetIncline(stepper->getCurrentPosition() + 1);
+        if ((stepper->getCurrentPosition() > rtConfig->getControlTargetPosition()) && (rtConfig->watts.getValue() < rtConfig->watts.getTarget())) {
+          rtConfig->setControlTargetPosition(stepper->getCurrentPosition() + 1);
         }
         // don't drive higher out of bounds. This is a final test that should never happen.
-        if ((stepper->getCurrentPosition() < rtConfig->getTargetIncline()) && (rtConfig->watts.getValue() > rtConfig->watts.getTarget())) {
-          rtConfig->setTargetIncline(stepper->getCurrentPosition() - 1);
+        if ((stepper->getCurrentPosition() < rtConfig->getControlTargetPosition()) && (rtConfig->watts.getValue() > rtConfig->watts.getTarget())) {
+          rtConfig->setControlTargetPosition(stepper->getCurrentPosition() - 1);
         }
 #endif
-        ss2k->targetPosition = rtConfig->getTargetIncline();
+        ss2k->targetPosition = rtConfig->getControlTargetPosition();
       } else if ((rtConfig->getFTMSMode() == FitnessMachineControlPointProcedure::SetTargetResistanceLevel)) {
         ss2k->_resistanceMove();
       } else {
@@ -134,19 +134,19 @@ void SS2K::_resistanceMove() {
       rtConfig->setFTMSMode(FitnessMachineControlPointProcedure::SetTargetPower);
       return;
     }
-    rtConfig->setTargetIncline(pos);
+    rtConfig->setControlTargetPosition(pos);
   } else {
     int actualDelta = rtConfig->resistance.getTarget() - rtConfig->resistance.getValue();
     int direction   = (actualDelta > 0) ? 1 : -1;
     if (abs(actualDelta) > 20 - userConfig->getERGSensitivity()) {
-      rtConfig->setTargetIncline(ss2k->getCurrentPosition() + userConfig->getShiftStep() * direction);
+      rtConfig->setControlTargetPosition(ss2k->getCurrentPosition() + userConfig->getShiftStep() * direction);
     } else if (abs(actualDelta) > 1) {
-      rtConfig->setTargetIncline(ss2k->getCurrentPosition() + actualDelta * 3 + (userConfig->getERGSensitivity() * direction));
+      rtConfig->setControlTargetPosition(ss2k->getCurrentPosition() + actualDelta * 3 + (userConfig->getERGSensitivity() * direction));
     } else {
-      rtConfig->setTargetIncline(ss2k->getCurrentPosition() + actualDelta + (userConfig->getERGSensitivity() * direction));
+      rtConfig->setControlTargetPosition(ss2k->getCurrentPosition() + actualDelta + (userConfig->getERGSensitivity() * direction));
     }
   }
-  ss2k->targetPosition = rtConfig->getTargetIncline();
+  ss2k->targetPosition = rtConfig->getControlTargetPosition();
 }
 
 void SS2K::setupTMCStepperDriver(bool reset) {
@@ -322,7 +322,7 @@ void SS2K::_findFTMSHome(bool bothDirections) {
       }
       ss2k->setCurrentPosition(stepper->getCurrentPosition());
       rtConfig->resistance.setTarget(targetResistance);
-      rtConfig->setTargetIncline(ss2k->getCurrentPosition());
+      rtConfig->setControlTargetPosition(ss2k->getCurrentPosition());
       ss2k->_resistanceMove();
       stepper->moveTo(ss2k->targetPosition);
       delay(5);
@@ -371,7 +371,7 @@ void SS2K::_findFTMSHome(bool bothDirections) {
   stepper->setCurrentPosition(0);
   ss2k->setCurrentPosition(0);
   ss2k->setTargetPosition(0);
-  rtConfig->setTargetIncline(0);
+  rtConfig->setControlTargetPosition(0);
   rtConfig->setMinStep(0);
   if (bothDirections) {
     if (!runHomingSweep(rtConfig->resistance.getMax(), "Homing to Max Resistance... Current: %d, Target: %d", true)) {
@@ -385,7 +385,7 @@ void SS2K::_findFTMSHome(bool bothDirections) {
   setupTMCStepperDriver(true);
   rtConfig->setShifterPosition(0);
   ss2k->setTargetPosition(0);
-  rtConfig->setTargetIncline(0);
+  rtConfig->setControlTargetPosition(0);
   stepper->moveTo(0);
   rtConfig->setMaxStep(userConfig->getHMax());  // Ensure it's set from config if not found
   rtConfig->setHomed(true);

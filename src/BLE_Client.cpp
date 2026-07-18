@@ -234,7 +234,14 @@ void bleClientTask(void* pvParameters) {
         } else {  // Startup Homing
           ss2k->goHome(false);
           if (rtConfig->getHomed()) {
-            rtConfig->setShifterPosition(8);  // Set to middle position after homing on startup
+            // Park at the middle of the calibrated gear range after startup homing. The old
+            // hardcoded gear 8 assumed a ~16-gear range and could land near max resistance on
+            // bikes with a short travel.
+            int middleGear = 8;
+            if (userConfig->getHMax() != INT32_MIN && userConfig->getHMin() != INT32_MIN && userConfig->getShiftStep() > 0) {
+              middleGear = (int)(((int64_t)userConfig->getHMax() - (int64_t)userConfig->getHMin()) / userConfig->getShiftStep() / 2);
+            }
+            rtConfig->setShifterPosition(middleGear);
           }
         }
         // Only clear the flag when homing actually succeeded. Clearing it on failure re-enabled

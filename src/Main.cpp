@@ -329,7 +329,9 @@ void SS2K::maintenanceLoop(void* pvParameters) {
       static int _oldHR              = 0;
       static int _oldWatts           = 0;
       static float _oldTargetIncline = 0.0f;
-      if (_oldHR == rtConfig->hr.getValue() && _oldWatts == rtConfig->watts.getValue() && fabsf(_oldTargetIncline - rtConfig->getTargetIncline()) < 0.01f) {
+      static float _oldControlTarget = 0.0f;
+      if (_oldHR == rtConfig->hr.getValue() && _oldWatts == rtConfig->watts.getValue() && fabsf(_oldTargetIncline - rtConfig->getTargetIncline()) < 0.01f &&
+          fabsf(_oldControlTarget - rtConfig->getControlTargetPosition()) < 0.01f) {
         // Inactivity detected
         if (((millis() - rebootTimer) > 1800000)) {
           // Timer expired
@@ -345,6 +347,7 @@ void SS2K::maintenanceLoop(void* pvParameters) {
         _oldHR            = rtConfig->hr.getValue();
         _oldWatts         = rtConfig->watts.getValue();
         _oldTargetIncline = rtConfig->getTargetIncline();
+        _oldControlTarget = rtConfig->getControlTargetPosition();
         rebootTimer       = millis();
         ss2k->setLEDEnabled(true); 
       }
@@ -571,13 +574,13 @@ void SS2K::resetIfShiftersHeld() {
       delay(200);
       digitalWrite(LED_PIN, LOW);
     }
-    for (int i = 0; i < 20; i++) {
-      LittleFS.format();
-      userConfig->setDefaults();
-      delay(200);
-      userConfig->saveToLittleFS();
-      delay(200);
-    }
+    // One format + one save is sufficient; this used to format the filesystem 20 times in a
+    // loop, adding ~8 s of boot delay and needless flash wear for no additional safety.
+    LittleFS.format();
+    userConfig->setDefaults();
+    delay(200);
+    userConfig->saveToLittleFS();
+    delay(200);
     ESP.restart();
   }
 }

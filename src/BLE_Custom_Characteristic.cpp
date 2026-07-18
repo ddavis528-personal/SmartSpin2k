@@ -748,7 +748,9 @@ void BLE_ss2kCustomCharacteristic::process(std::string rxValue) {
       }
       if (rxValue[0] == cc_write && rxValue.length() >= 4) {
         returnValue[0] = cc_success;
-        rtConfig->watts.setValue(bytes_to_u16(rxValue[3], rxValue[2]));
+        // This characteristic is the ERG *target*; a copy-paste from the simulatedWatts case
+        // made writes overwrite the measured power value instead of the target.
+        rtConfig->watts.setTarget(bytes_to_u16(rxValue[3], rxValue[2]));
         LOG_BUF_APPEND("(%d)", rtConfig->watts.getTarget());
       }
       break;
