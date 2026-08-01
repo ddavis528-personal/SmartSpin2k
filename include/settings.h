@@ -274,6 +274,10 @@ constexpr const char* ANY = "any";
 // gears either side of where it stopped so it can still be shifted but cannot run away.
 #define CALIBRATION_ABORT_SAFE_GEARS 4
 
+// The minWatts-derived software end stop may consume at most 1/this of the calibrated travel,
+// so a bad power-table entry can never collapse the usable gear range.
+#define MIN_WATTS_FLOOR_DIVISOR 3
+
 // stealthChop enabled by default
 #define STEALTHCHOP true
 

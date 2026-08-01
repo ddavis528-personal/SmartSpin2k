@@ -27,6 +27,11 @@ class PowerTable {
   // Sets stepper min/max value from power table
   void setStepperMinMax();
 
+  // Returns the effective minimum stepper position: the place that produces minWatts, acting as
+  // a software end stop inside the mechanical range so the knob doesn't crash into the low hard
+  // stop. Returns mechanicalMin unchanged until the table has learned a position for minWatts.
+  int32_t minWattsFloor(int32_t mechanicalMin, int32_t mechanicalMax);
+
   // Catalogs a new entry into the power table.
   void newEntry(PowerBuffer& powerBuffer);
 

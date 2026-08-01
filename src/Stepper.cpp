@@ -381,6 +381,11 @@ void SS2K::_findFTMSHome(bool bothDirections) {
 
   // log found positions
   SS2K_LOG(MAIN_LOG_TAG, "Found Min Resistance Position: %d", rtConfig->resistance.getValue());
+  // Back off one gear before zeroing so the software minimum sits inside the physical limit.
+  // goHome()'s StallGuard path has always done this; the FTMS path did not, so it produced
+  // travel limits that sat exactly on the stops and let ERG park the knob against them
+  // (brief grinding and coupler slip at the ends of travel).
+  stepper->move(userConfig->getShiftStep(), true);
   stepper->setCurrentPosition(0);
   ss2k->setCurrentPosition(0);
   ss2k->setTargetPosition(0);
@@ -390,7 +395,8 @@ void SS2K::_findFTMSHome(bool bothDirections) {
     if (!runHomingSweep(rtConfig->resistance.getMax(), "Homing to Max Resistance... Current: %d, Target: %d", true)) {
       return;
     }
-    rtConfig->setMaxStep(stepper->getCurrentPosition());
+    // Same one-gear margin at the top, matching goHome().
+    rtConfig->setMaxStep(stepper->getCurrentPosition() - userConfig->getShiftStep());
     userConfig->setHMin(rtConfig->getMinStep());
     userConfig->setHMax(rtConfig->getMaxStep());
     SS2K_LOG(MAIN_LOG_TAG, "Found Max Resistance Position: %d", rtConfig->resistance.getValue());

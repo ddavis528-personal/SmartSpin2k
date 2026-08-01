@@ -88,6 +88,50 @@ void PowerTable::processPowerValue(PowerBuffer& powerBuffer, int cadence, Measur
   }
 }
 
+// Raise the effective minimum stepper position to the place that actually produces minWatts.
+//
+// hMin is the *mechanical* limit found by homing. minWatts ("minimum watts @ 90 rpm") is meant
+// to act as a software end stop inside that range, so the knob stops short of the low hard stop
+// instead of crashing into it and losing steps. Previously this never happened once the device
+// was homed: setStepperMinMax() returned early whenever hMin/hMax were configured, so the
+// minWatts-derived floor below was unreachable in practice.
+//
+// The floor only applies when the table has learned a position for minWatts; until then the
+// mechanical limit stands, and a bad table entry can never swallow the usable range because the
+// floor is capped to a fraction of the total travel. Returns mechanicalMin when no floor
+// applies. Kept pure so the caller writes minStep once and the stepper task (a different task)
+// never observes a transient mechanical value.
+int32_t PowerTable::minWattsFloor(int32_t mechanicalMin, int32_t mechanicalMax) {
+  // Both limits must be real for a range-relative cap to mean anything (INT32_MIN is the
+  // "never homed" sentinel, which setMinStep/setMaxStep translate into the +/-200M defaults).
+  if (mechanicalMin == INT32_MIN || mechanicalMax == INT32_MIN || mechanicalMax <= mechanicalMin) {
+    return mechanicalMin;
+  }
+  const int minBreakWatts = userConfig->getMinWatts();
+  if (minBreakWatts <= 1) {
+    return mechanicalMin;
+  }
+
+  const int32_t wattFloor = this->lookup(minBreakWatts, NORMAL_CAD);
+  if (wattFloor == RETURN_ERROR || wattFloor <= mechanicalMin) {
+    return mechanicalMin;  // No usable table data yet, or minWatts is reached at the hard stop.
+  }
+
+  int32_t floor          = wattFloor;
+  const int32_t maxFloor = mechanicalMin + (mechanicalMax - mechanicalMin) / MIN_WATTS_FLOOR_DIVISOR;
+  if (floor > maxFloor) {
+    SS2K_LOG(POWERTABLE_LOG_TAG, "minWatts floor %d exceeds 1/%d of travel; capping at %d", floor, MIN_WATTS_FLOOR_DIVISOR, maxFloor);
+    floor = maxFloor;
+  }
+
+  static int32_t _lastLoggedFloor = INT32_MIN;
+  if (floor != _lastLoggedFloor) {
+    SS2K_LOG(POWERTABLE_LOG_TAG, "minWatts (%dw @ %drpm) floor applied: minStep %d -> %d", minBreakWatts, NORMAL_CAD, mechanicalMin, floor);
+    _lastLoggedFloor = floor;
+  }
+  return floor;
+}
+
 // Set min / max stepper position
 void PowerTable::setStepperMinMax() {
   int32_t _return = RETURN_ERROR;
@@ -99,7 +143,7 @@ void PowerTable::setStepperMinMax() {
   // every call here.
   if (userConfig->getHMin() != INT32_MIN || userConfig->getHMax() != INT32_MIN) {
     SS2K_LOG(POWERTABLE_LOG_TAG, "Using configured travel limits (hMin=%d hMax=%d)", userConfig->getHMin(), userConfig->getHMax());
-    rtConfig->setMinStep(userConfig->getHMin());
+    rtConfig->setMinStep(this->minWattsFloor(userConfig->getHMin(), userConfig->getHMax()));
     rtConfig->setMaxStep(userConfig->getHMax());
     return;
   } else if (rtConfig->getHomed()) {
