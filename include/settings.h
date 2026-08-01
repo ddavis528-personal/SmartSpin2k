@@ -267,6 +267,13 @@ constexpr const char* ANY = "any";
 // initiated.
 #define SHIFTERS_HOLD_FOR_SCAN 2
 
+// How long either shifter button must be held to abort a calibration run.
+#define CALIBRATION_ABORT_HOLD_MS 5000
+
+// When calibration is aborted before any travel limits are known, fence the motor to this many
+// gears either side of where it stopped so it can still be shifted but cannot run away.
+#define CALIBRATION_ABORT_SAFE_GEARS 4
+
 // stealthChop enabled by default
 #define STEALTHCHOP true
 

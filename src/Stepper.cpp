@@ -253,6 +253,13 @@ bool SS2K::_findEndStop(bool moveForward) {
   int currentSgResult       = 0;
   while ((millis() - timeoutTimer) < HOME_TIMEOUT) {
     delay(5);
+    // Hold-to-abort: stop immediately and let goHome() unwind the whole run.
+    if (ss2k->calibrationAbortRequested) {
+      SS2K_LOG(MAIN_LOG_TAG, "Homing cancelled by abort request.");
+      stepper->forceStop();
+      setupTMCStepperDriver(true);  // Restore normal driver settings
+      return false;
+    }
     // Allow user to abort the homing process with a shift
     if (rtConfig->getShifterPosition() != ss2k->lastShifterPosition) {
       SS2K_LOG(MAIN_LOG_TAG, "Homing aborted by user.");
@@ -311,6 +318,12 @@ void SS2K::_findFTMSHome(bool bothDirections) {
     while ((rtConfig->resistance.getValue() != targetResistance) && ((i < iMax) || (abs(ss2k->getCurrentPosition() - lastPosition) < minTravel))) {
       if (millis() - timer > HOME_TIMEOUT) {
         SS2K_LOG(MAIN_LOG_TAG, "FTMS Homing timed out!");
+        setupTMCStepperDriver(true);  // Restore normal driver settings
+        return false;
+      }
+      if (ss2k->calibrationAbortRequested) {
+        SS2K_LOG(MAIN_LOG_TAG, "FTMS Homing cancelled by abort request.");
+        stepper->forceStop();
         setupTMCStepperDriver(true);  // Restore normal driver settings
         return false;
       }
@@ -393,6 +406,10 @@ void SS2K::_findFTMSHome(bool bothDirections) {
 }
 
 void SS2K::goHome(bool bothDirections) {
+  if (ss2k->calibrationAbortRequested) {
+    SS2K_LOG(MAIN_LOG_TAG, "Homing not started: abort requested.");
+    return;
+  }
   ss2k->isHoming = true;
   SS2K_LOG(MAIN_LOG_TAG, "Starting homing procedure...");
   // Captured before this re-home overwrites HMin/HMax, so we can tell afterwards whether the

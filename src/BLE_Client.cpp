@@ -229,6 +229,9 @@ void bleClientTask(void* pvParameters) {
       if (cadenceCount >= 2000 / BLE_CLIENT_DELAY) {  // Approx 2 seconds of cadence
         SS2K_LOG(BLE_CLIENT_LOG_TAG, "Spin Down initiated via BLE Client task.");
         cadenceCount = 0;
+        // A run is starting, so any previous abort no longer describes the current state.
+        ss2k->calibrationAborted        = false;
+        ss2k->calibrationAbortRequested = false;
         if (spinBLEServer.spinDownFlag >= 2) {  // Home Both Directions
           ss2k->goHome(true);
         } else {  // Startup Homing
@@ -250,7 +253,13 @@ void bleClientTask(void* pvParameters) {
         // homing attempt repeats after another ~2 s of cadence instead.
         if (rtConfig->getHomed()) {
           spinBLEServer.spinDownFlag = 0;
+          ss2k->calibrationFailed    = false;
+        } else if (ss2k->calibrationAbortRequested) {
+          // The user held a shifter button to stop calibration: honor it instead of retrying,
+          // and restore safe travel limits.
+          ss2k->abortCalibration();
         } else {
+          ss2k->calibrationFailed = true;
           SS2K_LOG(BLE_CLIENT_LOG_TAG, "Homing failed; keeping spinDownFlag set to retry.");
         }
       }

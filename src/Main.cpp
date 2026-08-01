@@ -527,6 +527,51 @@ void SS2K::restartWifi() {
   httpServer.start();
 }
 
+uint8_t SS2K::getCalibrationState() {
+  if (ss2k->isHoming) {
+    return CALIBRATION_ACTIVE;
+  }
+  if (spinBLEServer.spinDownFlag) {
+    // A run is queued. Distinguish "never started yet" from "previous attempt failed" so the
+    // app can tell the user whether it is waiting on them or retrying.
+    return ss2k->calibrationFailed ? CALIBRATION_RETRY : CALIBRATION_PENDING;
+  }
+  if (ss2k->calibrationAborted) {
+    return CALIBRATION_ABORTED;
+  }
+  return CALIBRATION_IDLE;
+}
+
+void SS2K::abortCalibration() {
+  SS2K_LOG(MAIN_LOG_TAG, "Calibration aborted by user (shifter held).");
+  ss2k->calibrationAborted        = true;
+  ss2k->calibrationFailed         = false;
+  ss2k->calibrationAbortRequested = false;
+  spinBLEServer.spinDownFlag      = 0;  // stop the retry loop
+
+  // Leaving an uncalibrated device with the default +/-200M travel limits would let the motor
+  // run away, which is exactly what the user just tried to prevent. Restore the last known
+  // good limits if we have them; otherwise fence the motor into a small window around where
+  // it stopped so manual shifting still works but nothing can drive to a hard stop.
+  if (userConfig->getHMin() != INT32_MIN && userConfig->getHMax() != INT32_MIN && userConfig->getHMax() > userConfig->getHMin()) {
+    rtConfig->setMinStep(userConfig->getHMin());
+    rtConfig->setMaxStep(userConfig->getHMax());
+    // Those limits were trustworthy a moment ago, so keep the device fully usable rather than
+    // dropping it into the degraded pre-homing mode.
+    rtConfig->setHomed(true);
+    SS2K_LOG(MAIN_LOG_TAG, "Restored previous travel limits after abort: %d to %d", userConfig->getHMin(), userConfig->getHMax());
+  } else {
+    rtConfig->setHomed(false);
+    int32_t safeWindow = userConfig->getShiftStep() * CALIBRATION_ABORT_SAFE_GEARS;
+    int32_t position   = ss2k->getCurrentPosition();
+    rtConfig->setMinStep(position - safeWindow);
+    rtConfig->setMaxStep(position + safeWindow);
+    SS2K_LOG(MAIN_LOG_TAG, "No previous limits; fencing travel to %d to %d after abort.", position - safeWindow, position + safeWindow);
+  }
+  ss2k->setTargetPosition(ss2k->getCurrentPosition());
+  rtConfig->setShifterPosition(ss2k->lastShifterPosition);
+}
+
 void SS2K::handleShiftButtons() {
   int upButtonIsPressed   = !digitalRead(currentBoard.shiftUpPin);
   int downButtonIsPressed = !digitalRead(currentBoard.shiftDownPin);
@@ -538,11 +583,13 @@ void SS2K::handleShiftButtons() {
       rtConfig->setShifterPosition(rtConfig->getShifterPosition() - 1 + userConfig->getShifterDir() * 2);
       ss2k->lastDebounceTime = millis();
     }
-    ss2k->upButtonState = PRESSED;
+    ss2k->upButtonState      = PRESSED;
+    ss2k->upButtonPressStart = millis();
 
   } else if (!upButtonIsPressed && ss2k->upButtonState == PRESSED) {
     // The button was pressed, but now it's not. Update the state.
-    ss2k->upButtonState = RELEASED;
+    ss2k->upButtonState      = RELEASED;
+    ss2k->upButtonPressStart = 0;
   }
 
   // --- DOWN Button State Machine ---
@@ -551,10 +598,31 @@ void SS2K::handleShiftButtons() {
       rtConfig->setShifterPosition(rtConfig->getShifterPosition() + 1 - userConfig->getShifterDir() * 2);
       ss2k->lastDebounceTime = millis();
     }
-    ss2k->downButtonState = PRESSED;
+    ss2k->downButtonState      = PRESSED;
+    ss2k->downButtonPressStart = millis();
 
   } else if (!downButtonIsPressed && ss2k->downButtonState == PRESSED) {
-    ss2k->downButtonState = RELEASED;
+    ss2k->downButtonState      = RELEASED;
+    ss2k->downButtonPressStart = 0;
+  }
+
+  // --- Hold either shifter button to abort calibration ---
+  // Only meaningful while a calibration run is queued or executing. The homing sweeps poll
+  // calibrationAbortRequested and bail out; the BLE client task then stops retrying.
+  if (spinBLEServer.spinDownFlag || ss2k->isHoming) {
+    unsigned long now      = millis();
+    bool upHeldLongEnough  = (ss2k->upButtonPressStart != 0) && ((now - ss2k->upButtonPressStart) >= CALIBRATION_ABORT_HOLD_MS);
+    bool downHeldLongEnough = (ss2k->downButtonPressStart != 0) && ((now - ss2k->downButtonPressStart) >= CALIBRATION_ABORT_HOLD_MS);
+    if (upHeldLongEnough || downHeldLongEnough) {
+      ss2k->calibrationAbortRequested = true;
+      // Don't re-trigger on the same hold.
+      ss2k->upButtonPressStart   = 0;
+      ss2k->downButtonPressStart = 0;
+      // If no sweep is currently running there is nothing to unwind the request, so honor it here.
+      if (!ss2k->isHoming) {
+        ss2k->abortCalibration();
+      }
+    }
   }
 
   // FTMSModeShiftModifier() is gated by spinDownFlag and cannot enforce gear limits until

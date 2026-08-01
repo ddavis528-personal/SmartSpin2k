@@ -849,6 +849,20 @@ void BLE_ss2kCustomCharacteristic::process(std::string rxValue) {
       }
       break;
 
+    case BLE_calibrationState:  // 0x2F
+      LOG_BUF_APPEND("<-calibrationState");
+      // Read-only: the state is derived from the homing flags, so a write would be meaningless.
+      // Use the spin-down control point (or 0x26 resetPowerTable) to request a calibration run.
+      if (rxValue[0] == cc_read) {
+        returnValue[0] = cc_success;
+        // Sent as a 2-byte little-endian int (not a single byte) because that is what the
+        // app's "int" decoder expects; a 3-byte packet is discarded as unsupported.
+        returnValue[2] = (uint8_t)(ss2k->getCalibrationState());
+        returnValue[3] = 0x00;
+        returnLength += 2;
+      }
+      break;
+
     case BLE_BLELogging:  // 0x30
       LOG_BUF_APPEND("<-BLELogging");
       if (rxValue[0] == cc_read) {
@@ -1047,6 +1061,14 @@ void BLE_ss2kCustomCharacteristic::parseNemit() {
   if (userConfig->getUdpLogEnabled() != _oldParams.getUdpLogEnabled()) {
     _oldParams.setUdpLogEnabled(userConfig->getUdpLogEnabled());
     BLE_ss2kCustomCharacteristic::notify(BLE_UDPLogging);
+    return;
+  }
+  // Calibration status is derived state, so it has no userConfig/rtConfig counterpart to diff
+  // against; keep the last notified value here and push every transition to the app.
+  static uint8_t _oldCalibrationState = CALIBRATION_IDLE;
+  if (ss2k->getCalibrationState() != _oldCalibrationState) {
+    _oldCalibrationState = ss2k->getCalibrationState();
+    BLE_ss2kCustomCharacteristic::notify(BLE_calibrationState);
     return;
   }
 }

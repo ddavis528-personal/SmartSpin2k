@@ -24,11 +24,26 @@ enum ButtonState {
   PRESSED
 };
 
+// Calibration status reported to the app over the custom BLE characteristic (0x2F).
+// Derived from spinDownFlag / isHoming / abort state rather than stored separately, so it
+// cannot drift out of sync with the flags that actually gate the control loop.
+enum CalibrationState : uint8_t {
+  CALIBRATION_IDLE    = 0,  // Not calibrating. Normal operation.
+  CALIBRATION_PENDING = 1,  // Queued; waiting for the user to pedal so homing can start.
+  CALIBRATION_ACTIVE  = 2,  // Homing sequence running now.
+  CALIBRATION_RETRY   = 3,  // Last attempt failed; will retry once pedaling resumes.
+  CALIBRATION_ABORTED = 4,  // User aborted (5 s shifter hold). No retry until re-requested.
+};
+
 class SS2K {
  private:
   unsigned long int lastDebounceTime = 0;
   ButtonState upButtonState;
   ButtonState downButtonState;
+  // Timestamps of the current button presses, used to detect a hold-to-abort gesture.
+  // 0 means the button is not currently pressed.
+  unsigned long int upButtonPressStart   = 0;
+  unsigned long int downButtonPressStart = 0;
   int lastShifterPosition;
   int shiftersHoldForScan;
   unsigned long int scanDelayTime;
@@ -50,6 +65,20 @@ class SS2K {
   bool resetPowerTableFlag = false;
   bool isUpdating          = false;
   bool isHoming            = false;
+  // Set by a 5-second shifter-button hold; read by the homing sweeps so they bail out, and by
+  // the BLE client task so it stops retrying. Written from the maintenance loop and read from
+  // the BLE client task, hence volatile.
+  volatile bool calibrationAbortRequested = false;
+  // Latched once an abort has been honored, so the app can show "aborted" instead of silently
+  // returning to idle. Cleared whenever a new calibration is requested.
+  bool calibrationAborted = false;
+  // True when the last completed homing attempt failed (so the app can show "retrying").
+  bool calibrationFailed = false;
+
+  // Reports the current calibration status for the app. Derived, never stored.
+  uint8_t getCalibrationState();
+  // Stops any in-progress calibration and prevents the retry loop from restarting it.
+  void abortCalibration();
 
   static void maintenanceLoop(void *pvParameters);
   static void ARDUINO_ISR_ATTR handleUpShift();

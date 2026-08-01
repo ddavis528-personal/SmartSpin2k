@@ -45,6 +45,12 @@ CHANGELOG.md
 - Gated by `spinDownFlag == 0`. Values: `0` = normal, `1` = startup re-verify homing, `2` = full homing pending.
 - When `spinDownFlag != 0`, gear writes are queued but not executed until the flag clears (homing completes on first pedal stroke).
 
+### Calibration status & abort (chars 0x2F)
+- `SS2K::getCalibrationState()` **derives** the state from `isHoming` / `spinDownFlag` / `calibrationFailed` / `calibrationAborted` — it is never stored, so it can't drift from the flags that gate the control loop. Values match `enum CalibrationState` in `Main.h`: 0 idle, 1 pending, 2 active, 3 retry, 4 aborted.
+- Notified to the app on every transition from `parseNemit()`; read-only over BLE (sent as a 2-byte int because the app's `"int"` decoder discards shorter packets).
+- **Abort**: holding either shifter button `CALIBRATION_ABORT_HOLD_MS` (5 s) while a run is queued/active sets `calibrationAbortRequested`. Homing sweeps poll it and bail; `BLE_Client` then calls `abortCalibration()` instead of retrying. Abort restores previous hMin/hMax when known (device stays homed/usable), else fences travel to ±`CALIBRATION_ABORT_SAFE_GEARS` around the current position.
+- Note a single button *press* still cancels the current sweep (pre-existing `shifterPosition != lastShifterPosition` check); only the 5-second hold stops the retry loop.
+
 ### hMin / hMax sentinels
 - **Before homing:** `hMin = hMax = INT32_MIN` (-2147483648). The device has not yet found its home position.
 - **After homing:** `minStep = 0`, `maxStep = hMax`. Gear range is `0` to `(hMax - hMin) / shiftStep`.
@@ -76,8 +82,8 @@ CHANGELOG.md
 ### Post-test-ride backlog (2026-07-18 ride on fixed builds; address in priority order)
 Test-ride verdict: no runaway; SIM behavior gradual and predictable. Remaining items:
 1. **ERG guardrail excursions**: brief grinding/slippage at travel limits during ERG, self-recovering. Likely physical-vs-counter drift after coupler slip (clamps use the counter, the knob is elsewhere). Consider load-based backoff (StallGuard during normal moves), margin below hMax, periodic min re-verify.
-2. **Calibration UX**: calibration is slower now (sticky retry on failure) with zero feedback. Expose calibration state (spinDownFlag/isHoming) over the custom BLE characteristic + notify transitions; add abort via 5-second hold of either physical shifter button (needs an abort latch that stops the retry loop, not just one sweep). App shows "Calibrating…" + abort hint instead of the gear number.
-3. **Gear denominator regressed** in app during ride — app requests only shiftStep on shifter-screen init; firmware may not notify hMin/hMax when homing completes. Request all three on screen open + notify from firmware post-homing.
+2. ~~**Calibration UX**~~ — DONE: calibration state char 0x2F + 5 s shifter-hold abort (firmware), "Calibrating…" display (app).
+3. ~~**Gear denominator regressed**~~ — DONE (app side): root cause was the firmware only notifying hMin/hMax *on change*, which happens at boot before any app connects; the shifter screen now requests hMin/hMax/shiftStep on open and after calibration finishes.
 4. **K / power-curve training too slow or absent**: K bump only fires after sustained saturation at the configured hard stop; power-table training needs connectedPM + cadence. Rework triggers, consider fitting from ordinary ride data, add training-progress visibility.
 5. **Manual min/max gear trim from app** (fine-tune after calibration): firmware already accepts hMin/hMax writes (0x2A/0x2B); needs a friendly UI on the shifter screen + guards (hMin < hMax, block during calibration).
 6. **WiFi OTA Android still failing** (low priority): check whether manual-IP path was tried; consider native NsdManager via platform channel instead of the multicast_dns package; surface per-candidate failure reasons in the UI.
