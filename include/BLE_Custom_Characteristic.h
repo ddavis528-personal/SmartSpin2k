@@ -66,6 +66,7 @@ const uint8_t BLE_UDPLogging            = 0x2E;  // Enable or disable UDP loggin
 const uint8_t BLE_calibrationState      = 0x2F;  // Read-only calibration status (see CalibrationState in Main.h)
 const uint8_t BLE_BLELogging            = 0x30;  // Enable or disable BLE logging
 const uint8_t BLE_powerScaleFactor      = 0x31;  // Read-only learned high-end power scale factor (K), x10
+const uint8_t BLE_cadenceCorrectionFactor = 0x32;  // Multiplier for bikes whose cadence sensor reads low/high, x10
 
 class BLE_ss2kCustomCharacteristic {
  public:

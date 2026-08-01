@@ -55,6 +55,7 @@ void userParameters::setDefaults() {
   stepperSpeed          = DEFAULT_STEPPER_SPEED;
   inclineMultiplier     = INCLINE_MULTIPLIER;
   powerCorrectionFactor       = 1.0;
+  cadenceCorrectionFactor     = DEFAULT_CADENCE_CORRECTION_FACTOR;
   highEndPowerScaleFactor = 1.0f;
   ERGSensitivity              = ERG_SENSITIVITY;
   autoUpdate            = AUTO_FIRMWARE_UPDATE;
@@ -93,6 +94,7 @@ String userParameters::returnJSON() {
   doc["stealthChop"]           = stealthChop;
   doc["inclineMultiplier"]     = inclineMultiplier;
   doc["powerCorrectionFactor"]   = powerCorrectionFactor;
+  doc["cadenceCorrectionFactor"] = cadenceCorrectionFactor;
   doc["highEndPowerScaleFactor"] = highEndPowerScaleFactor;
   doc["ERGSensitivity"]          = ERGSensitivity;
   doc["autoUpdate"]              = autoUpdate;
@@ -146,6 +148,7 @@ void userParameters::saveToLittleFS() {
   doc["stealthChop"]           = stealthChop;
   doc["inclineMultiplier"]     = inclineMultiplier;
   doc["powerCorrectionFactor"]   = powerCorrectionFactor;
+  doc["cadenceCorrectionFactor"] = cadenceCorrectionFactor;
   doc["highEndPowerScaleFactor"] = highEndPowerScaleFactor;
   doc["ERGSensitivity"]          = ERGSensitivity;
   doc["autoUpdate"]              = autoUpdate;
@@ -265,6 +268,12 @@ JsonDocument doc;
     setPowerCorrectionFactor(doc["powerCorrectionFactor"]);
     if ((getPowerCorrectionFactor() < MIN_PCF) || (getPowerCorrectionFactor() > MAX_PCF)) {
       setPowerCorrectionFactor(1);
+    }
+  }
+  if (doc["cadenceCorrectionFactor"]) {
+    setCadenceCorrectionFactor(doc["cadenceCorrectionFactor"]);
+    if ((getCadenceCorrectionFactor() < MIN_CCF) || (getCadenceCorrectionFactor() > MAX_CCF)) {
+      setCadenceCorrectionFactor(DEFAULT_CADENCE_CORRECTION_FACTOR);
     }
   }
   if (doc["highEndPowerScaleFactor"]) {

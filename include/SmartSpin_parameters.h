@@ -141,6 +141,8 @@ class userParameters {
   bool stealthChop;
   float inclineMultiplier;
   float powerCorrectionFactor;
+  // Multiplier applied to every incoming cadence reading, for bikes whose sensor reads low.
+  float cadenceCorrectionFactor;
   float highEndPowerScaleFactor;
   float ERGSensitivity;
   bool autoUpdate;
@@ -184,6 +186,9 @@ class userParameters {
 
   void setPowerCorrectionFactor(float pcf) { powerCorrectionFactor = pcf; }
   float getPowerCorrectionFactor() { return powerCorrectionFactor; }
+
+  void setCadenceCorrectionFactor(float ccf) { cadenceCorrectionFactor = ccf; }
+  float getCadenceCorrectionFactor() { return cadenceCorrectionFactor; }
 
   void setHighEndPowerScaleFactor(float k) { highEndPowerScaleFactor = k; }
   float getHighEndPowerScaleFactor() { return highEndPowerScaleFactor; }

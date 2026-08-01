@@ -891,6 +891,33 @@ void BLE_ss2kCustomCharacteristic::process(std::string rxValue) {
       }
       break;
 
+    case BLE_cadenceCorrectionFactor:  // 0x32
+      LOG_BUF_APPEND("<-cadenceCorrectionFactor");
+      if (rxValue[0] == cc_read) {
+        returnValue[0] = cc_success;
+        int scaled     = (int)round(userConfig->getCadenceCorrectionFactor() * 10.0f);
+        returnValue[2] = (uint8_t)(scaled & 0xff);
+        returnValue[3] = (uint8_t)(scaled >> 8);
+        returnLength += 2;
+      }
+      if (rxValue[0] == cc_write && rxValue.length() >= 4) {
+        returnValue[0]     = cc_success;
+        float requested    = bytes_to_s16(rxValue[3], rxValue[2]) / 10.0f;
+        const float oldCcf = userConfig->getCadenceCorrectionFactor();
+        if (requested < MIN_CCF) requested = MIN_CCF;
+        if (requested > MAX_CCF) requested = MAX_CCF;
+        userConfig->setCadenceCorrectionFactor(requested);
+        // The power table is keyed by cadence, so rescaling cadence shifts what every existing
+        // row means. Make the table re-earn its confidence from fresh readings rather than
+        // trusting rows recorded against the old scale.
+        const float ccfDelta = requested - oldCcf;
+        if (ccfDelta > 0.01f || ccfDelta < -0.01f) {
+          powerTable->downgradeConfidence();
+        }
+        LOG_BUF_APPEND("(%.1f)", userConfig->getCadenceCorrectionFactor());
+      }
+      break;
+
     default:
       LOG_BUF_APPEND("<-Unknown Characteristic");
       returnValue[0] = cc_error;
@@ -959,6 +986,12 @@ void BLE_ss2kCustomCharacteristic::parseNemit() {
   if (userConfig->getPowerCorrectionFactor() != _oldParams.getPowerCorrectionFactor()) {
     _oldParams.setPowerCorrectionFactor(userConfig->getPowerCorrectionFactor());
     BLE_ss2kCustomCharacteristic::notify(BLE_powerCorrectionFactor);
+    return;
+  }
+
+  if (userConfig->getCadenceCorrectionFactor() != _oldParams.getCadenceCorrectionFactor()) {
+    _oldParams.setCadenceCorrectionFactor(userConfig->getCadenceCorrectionFactor());
+    BLE_ss2kCustomCharacteristic::notify(BLE_cadenceCorrectionFactor);
     return;
   }
 

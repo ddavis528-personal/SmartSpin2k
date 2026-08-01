@@ -51,6 +51,13 @@ const char* const DEFAULT_PASSWORD = "password";
 // Minumum value for power correction factor user setting
 #define MIN_PCF .5f
 
+// Cadence correction factor bounds. Some bikes' cadence sensors read consistently low (or
+// high), which makes app workout RPM targets unreachable and skews every cadence-keyed
+// decision in the firmware. Applied at sensor ingestion so one correction covers everything.
+#define MIN_CCF .5f
+#define MAX_CCF 2.0f
+#define DEFAULT_CADENCE_CORRECTION_FACTOR 1.0f
+
 // Maximum value for power correction factor user setting
 #define MAX_PCF 2.5f
 

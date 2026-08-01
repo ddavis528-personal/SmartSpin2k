@@ -58,7 +58,11 @@ void collectAndSet(NimBLEUUID charUUID, NimBLEUUID serviceUUID, std::string& uni
     if ((charUUID == PELOTON_DATA_UUID) && !(strcmp(userConfig->getConnectedPowerMeter(), NONE) == 0 || strcmp(userConfig->getConnectedPowerMeter(), ANY) == 0)) {
       // Peloton connected but using BLE Power Meter. So skip cad for Peloton UUID.
     } else {
-      int cadence = round(sensorData->getCadence());
+      // Correction is applied here, at ingestion, so a single setting covers everything
+      // downstream: the FTMS/Zwift broadcast, ERG's minimum-cadence gate, the homing trigger,
+      // the power table's cadence keys and the shift-response monitor all see one consistent
+      // value rather than each needing to know about the correction.
+      int cadence = round(sensorData->getCadence() * userConfig->getCadenceCorrectionFactor());
       if (cadence > 0 && cadence < 250) {
         rtConfig->cad.setValue(cadence);
         spinBLEClient.connectedCD = true;
