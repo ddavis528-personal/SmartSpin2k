@@ -51,6 +51,15 @@ CHANGELOG.md
 - **Abort**: holding either shifter button `CALIBRATION_ABORT_HOLD_MS` (5 s) while a run is queued/active sets `calibrationAbortRequested`. Homing sweeps poll it and bail; `BLE_Client` then calls `abortCalibration()` instead of retrying. Abort restores previous hMin/hMax when known (device stays homed/usable), else fences travel to ±`CALIBRATION_ABORT_SAFE_GEARS` around the current position.
 - Note a single button *press* still cancels the current sweep (pre-existing `shifterPosition != lastShifterPosition` check); only the 5-second hold stops the retry loop.
 
+### Shift response monitor (`src/ShiftResponse.cpp`) — power-curve training + slip detection
+- Premise: at steady cadence, moving the knob must change power. Flat power after a gear-sized move means something, and *where* in the travel it happened says what.
+- **Top** region → pad saturated → bump K (`highEndPowerScaleFactor`). This is the fast training path; ERG's old 25 s saturation trigger rarely fires in practice.
+- **Bottom** → low-end dead zone; recorded + logged only (does *not* raise the travel floor — minWatts already does that, see `PowerTable::minWattsFloor`).
+- **Mid** → coupler slip (counter moved, knob didn't) → sets `slipSuspected`, surfaced as `CALIBRATION_SLIP_SUSPECTED` (5) on char 0x2F. Advisory only; cleared by a successful calibration.
+- Qualification: gear-sized move, `SHIFT_RESPONSE_SETTLE_MS` (4 s) settle, |Δcad| ≤ 5 rpm, |Δw| < max(8 W, 5%), and `SHIFT_RESPONSE_CONFIRMATIONS` (3) corroborating moves in the same region. Any responsive move clears the counters.
+- **Inert in ERG mode by design** — there the controller moves the knob to hold power flat, so flat power is success, not a fault. ERG keeps its own saturation detector.
+- K is exposed read-only on char 0x31 (×10) for training visibility.
+
 ### hMin / hMax sentinels
 - **Before homing:** `hMin = hMax = INT32_MIN` (-2147483648). The device has not yet found its home position.
 - **After homing:** `minStep = 0`, `maxStep = hMax`. Gear range is `0` to `(hMax - hMin) / shiftStep`.

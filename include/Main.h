@@ -33,6 +33,11 @@ enum CalibrationState : uint8_t {
   CALIBRATION_ACTIVE  = 2,  // Homing sequence running now.
   CALIBRATION_RETRY   = 3,  // Last attempt failed; will retry once pedaling resumes.
   CALIBRATION_ABORTED = 4,  // User aborted (5 s shifter hold). No retry until re-requested.
+  // Repeated mid-travel knob moves stopped changing power, which means the position counter
+  // probably no longer matches the physical knob (coupler slip). Advisory only: nothing is
+  // recalibrated automatically, because a surprise homing sweep mid-ride is worse than a
+  // stale counter.
+  CALIBRATION_SLIP_SUSPECTED = 5,
 };
 
 class SS2K {

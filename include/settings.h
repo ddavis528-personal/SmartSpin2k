@@ -278,6 +278,30 @@ constexpr const char* ANY = "any";
 // so a bad power-table entry can never collapse the usable gear range.
 #define MIN_WATTS_FLOOR_DIVISOR 3
 
+// --- Shift response monitor -------------------------------------------------------------
+// Learns from what happens after the knob moves: at a steady cadence, moving the resistance
+// knob must change power. Where it fails to tells us something different in each region.
+// How often power/cadence/position are sampled.
+#define SHIFT_RESPONSE_SAMPLE_MS 250
+// How long to wait after the knob stops before trusting the new power reading. Both the pad
+// mechanics and the power meter's own averaging lag the move.
+#define SHIFT_RESPONSE_SETTLE_MS 4000
+// Samples averaged on each side of a move before it can be judged.
+#define SHIFT_RESPONSE_MIN_SAMPLES 6
+// A move only teaches us anything if the rider held roughly the same cadence across it.
+#define SHIFT_RESPONSE_MAX_CAD_DELTA 5
+// Power counts as "flat" when it moved less than this many watts AND less than this fraction.
+#define SHIFT_RESPONSE_FLAT_WATTS 8
+#define SHIFT_RESPONSE_FLAT_FRACTION 0.05f
+// Riders change effort constantly, so one flat move proves nothing. Require this many in the
+// same region of travel before acting on it.
+#define SHIFT_RESPONSE_CONFIRMATIONS 3
+// The top and bottom regions are each 1/this of the calibrated travel.
+#define SHIFT_RESPONSE_EDGE_DIVISOR 6
+// Below this cadence the power reading is too noisy to compare. Deliberately low: some bikes
+// under-report cadence badly enough that a higher gate would exclude normal riding.
+#define SHIFT_RESPONSE_MIN_CADENCE 30
+
 // stealthChop enabled by default
 #define STEALTHCHOP true
 

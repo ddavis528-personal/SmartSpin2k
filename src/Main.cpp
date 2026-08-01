@@ -25,6 +25,7 @@
 #include "BLE_Zwift_Service.h"
 #include "BLE_OpenBikeControl_Service.h"
 #include "DirConManager.h"
+#include "ShiftResponse.h"
 
 // Peloton Serial
 HardwareSerial auxSerial(1);
@@ -234,6 +235,9 @@ void SS2K::maintenanceLoop(void* pvParameters) {
         } else {
           ss2k->FTMSModeShiftModifier();
           ergMode->runERG();
+          // Learns the power curve from ordinary riding by watching what happens after the
+          // knob moves. Self-throttles and ignores ERG mode.
+          shiftResponse.update();
         }
       }
       // wattbikeService.parseNemit();
@@ -538,6 +542,9 @@ uint8_t SS2K::getCalibrationState() {
   }
   if (ss2k->calibrationAborted) {
     return CALIBRATION_ABORTED;
+  }
+  if (shiftResponse.getSlipSuspected()) {
+    return CALIBRATION_SLIP_SUSPECTED;
   }
   return CALIBRATION_IDLE;
 }

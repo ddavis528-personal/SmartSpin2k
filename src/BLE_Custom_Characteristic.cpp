@@ -876,6 +876,21 @@ void BLE_ss2kCustomCharacteristic::process(std::string rxValue) {
       }
       break;
 
+    case BLE_powerScaleFactor:  // 0x31
+      LOG_BUF_APPEND("<-powerScaleFactor");
+      // Read-only: K is learned from ride data (see ShiftResponse / ERG saturation), so letting
+      // it be written would just be overwritten by the next training event. Exposed so the app
+      // can show whether the high-end power model is actually training. Sent x10 to match the
+      // app's "float" decoder.
+      if (rxValue[0] == cc_read) {
+        returnValue[0]   = cc_success;
+        int scaledFactor = (int)round(userConfig->getHighEndPowerScaleFactor() * 10.0f);
+        returnValue[2]   = (uint8_t)(scaledFactor & 0xff);
+        returnValue[3]   = (uint8_t)(scaledFactor >> 8);
+        returnLength += 2;
+      }
+      break;
+
     default:
       LOG_BUF_APPEND("<-Unknown Characteristic");
       returnValue[0] = cc_error;

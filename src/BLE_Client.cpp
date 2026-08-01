@@ -9,6 +9,7 @@
 #include "BLE_Common.h"
 #include "BLE_Fitness_Machine_Service.h"
 #include "SS2KLog.h"
+#include "ShiftResponse.h"
 
 #include <ArduinoJson.h>
 #include <Constants.h>
@@ -254,6 +255,9 @@ void bleClientTask(void* pvParameters) {
         if (rtConfig->getHomed()) {
           spinBLEServer.spinDownFlag = 0;
           ss2k->calibrationFailed    = false;
+          // A fresh calibration re-syncs the counter with the knob, which is exactly the cure
+          // for a suspected slip.
+          shiftResponse.clearSlipSuspicion();
         } else if (ss2k->calibrationAbortRequested) {
           // The user held a shifter button to stop calibration: honor it instead of retrying,
           // and restore safe travel limits.
