@@ -121,7 +121,19 @@ extern "C" void app_main() {
   // if we have homing data, use that instead.
   if (userConfig->getHMax() != INT32_MIN && userConfig->getHMin() != INT32_MIN) {
     SS2K_LOG(MAIN_LOG_TAG, "Using homing data from config file.");
+    // Apply the stored limits immediately. They used to sit unused until PowerTable::
+    // setStepperMinMax() ran from the ERG loop, which is gated on spinDownFlag - so during the
+    // whole "waiting for the first pedal stroke" window the motor ran with the +/-200M defaults
+    // and shifting had no ceiling at all.
+    rtConfig->setMinStep(userConfig->getHMin());
+    rtConfig->setMaxStep(userConfig->getHMax());
     spinBLEServer.spinDownFlag = 1;
+  } else {
+    // Never calibrated: fence travel to a plausible gear range rather than +/-200M, so an
+    // uncalibrated device still cannot be shifted into its own hard stop.
+    rtConfig->setMinStep(0);
+    rtConfig->setMaxStep((int32_t)userConfig->getShiftStep() * UNCALIBRATED_MAX_GEARS);
+    SS2K_LOG(MAIN_LOG_TAG, "No stored travel limits; using provisional range 0-%d until calibration.", rtConfig->getMaxStep());
   }
 
   // print littleFS free space and all file sizes on partition

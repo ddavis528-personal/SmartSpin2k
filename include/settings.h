@@ -281,6 +281,11 @@ constexpr const char* ANY = "any";
 // gears either side of where it stopped so it can still be shifted but cannot run away.
 #define CALIBRATION_ABORT_SAFE_GEARS 4
 
+// Provisional gear range used before travel limits are known. Without this the limits are the
+// +/-200M defaults, which is no limit at all: the user can keep upshifting until the knob
+// grinds against its physical stop. A real calibration replaces this with measured limits.
+#define UNCALIBRATED_MAX_GEARS 24
+
 // The minWatts-derived software end stop may consume at most 1/this of the calibrated travel,
 // so a bad power-table entry can never collapse the usable gear range.
 #define MIN_WATTS_FLOOR_DIVISOR 3

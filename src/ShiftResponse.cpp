@@ -153,6 +153,14 @@ void ShiftResponseMonitor::update() {
     _reset();
     return;
   }
+  // Every conclusion here depends on knowing where in its travel the knob is, and an
+  // uncalibrated device only has provisional limits. Worse, "mid travel" then covers almost
+  // everything, so an uncalibrated device that simply isn't responding would report a coupler
+  // slip - a false alarm pointing at the wrong problem. Wait for real limits.
+  if (!rtConfig->getHomed()) {
+    _reset();
+    return;
+  }
 
   const int cadence = rtConfig->cad.getValue();
   const int watts   = rtConfig->watts.getValue();

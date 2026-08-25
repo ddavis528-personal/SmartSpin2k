@@ -150,11 +150,14 @@ void PowerTable::setStepperMinMax() {
     SS2K_LOG(POWERTABLE_LOG_TAG, "HOMING VALUES NOT FOUND");
   }
 
-  // if the FTMS device reports resistance feedback, skip estimating min_max
+  // If the FTMS device reports resistance feedback, don't estimate travel from the power table -
+  // resistance feedback is the better signal. But don't hand out the +/-200M defaults either:
+  // that is no limit at all, and it let an uncalibrated device be shifted straight into its
+  // physical stop. Fence to a plausible gear range until a real calibration replaces it.
   if (rtConfig->resistance.getValue() > 0 && !rtConfig->resistance.getSimulate()) {
-    rtConfig->setMinStep(-DEFAULT_STEPPER_TRAVEL);
-    rtConfig->setMaxStep(DEFAULT_STEPPER_TRAVEL);
-    SS2K_LOG(POWERTABLE_LOG_TAG, "Using Resistance Travel Limits");
+    rtConfig->setMinStep(0);
+    rtConfig->setMaxStep((int32_t)userConfig->getShiftStep() * UNCALIBRATED_MAX_GEARS);
+    SS2K_LOG(POWERTABLE_LOG_TAG, "Resistance feedback available but travel uncalibrated; provisional range 0-%d", rtConfig->getMaxStep());
     return;
   }
 

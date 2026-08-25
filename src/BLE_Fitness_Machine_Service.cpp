@@ -404,9 +404,15 @@ int BLE_Fitness_Machine_Service::calculateResistanceFromPosition() {
   if (maxPos <= minPos) {
     return 50; // Default to mid-point resistance if range is invalid
   }
-  
-  // Calculate resistance as percentage (0-100) based on position
-  int resistance = ((currentPosition - minPos) * 100) / (maxPos - minPos);
+
+  // Calculate resistance as percentage (0-100) based on position.
+  // 64-bit intermediate: with the uncalibrated +/-200M default limits, (position - minPos) * 100
+  // is ~2e10 and overflowed int32, wrapping to a negative value that then clamped to 0. The
+  // reported resistance was therefore stuck at 0 (and nonmonotonic in general) on any device
+  // whose travel limits had not been established.
+  int64_t span       = (int64_t)maxPos - (int64_t)minPos;
+  int64_t scaled     = ((int64_t)currentPosition - (int64_t)minPos) * 100 / span;
+  int resistance     = (int)scaled;
   
   // Clamp to valid range
   if (resistance < 0) resistance = 0;
