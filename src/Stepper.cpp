@@ -406,7 +406,18 @@ void SS2K::_findFTMSHome(bool bothDirections) {
   ss2k->setTargetPosition(0);
   rtConfig->setControlTargetPosition(0);
   stepper->moveTo(0);
-  rtConfig->setMaxStep(userConfig->getHMax());  // Ensure it's set from config if not found
+  // A one-directional run only establishes the minimum; the maximum has to come from a previous
+  // full calibration. Without one there is no ceiling at all (setMaxStep turns the INT32_MIN
+  // sentinel into the +200M default), so declaring the device homed here would report a
+  // successful calibration while leaving the knob free to be driven past its physical stop.
+  if (userConfig->getHMax() == INT32_MIN) {
+    SS2K_LOG(MAIN_LOG_TAG, "Homing found the minimum but no maximum is known. Requesting a full calibration.");
+    rtConfig->setHomed(false);
+    spinBLEServer.spinDownFlag = 2;  // ask for a both-directions run on the next pedal stroke
+    userConfig->saveToLittleFS();
+    return;
+  }
+  rtConfig->setMaxStep(userConfig->getHMax());
   rtConfig->setHomed(true);
   userConfig->saveToLittleFS();
 }
@@ -572,6 +583,11 @@ void SS2K::goHome(bool bothDirections) {
     userConfig->setHMin(rtConfig->getMinStep());
     userConfig->setHMax(rtConfig->getMaxStep());
     userConfig->saveToLittleFS();
+  } else if (userConfig->getHMax() == INT32_MIN) {
+    // Same as the FTMS path: a minimum-only run cannot stand in for a full calibration.
+    SS2K_LOG(MAIN_LOG_TAG, "Homing found the minimum but no maximum is known. Requesting a full calibration.");
+    rtConfig->setHomed(false);
+    spinBLEServer.spinDownFlag = 2;
   } else if (rtConfig->getMaxStep() < rtConfig->getMinStep()) {  // homing failed
     SS2K_LOG(MAIN_LOG_TAG, "Homing failed. Positions were reversed. Min:%d Max:%d", rtConfig->getMinStep(), rtConfig->getMaxStep());
     rtConfig->setMaxStep(INT32_MIN);

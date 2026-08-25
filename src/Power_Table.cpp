@@ -141,11 +141,19 @@ void PowerTable::setStepperMinMax() {
   // userConfig->setHMin/Max() without raising the homed flag, so the previous guard on
   // rtConfig->getHomed() caused those app-configured stops to be silently overwritten on
   // every call here.
-  if (userConfig->getHMin() != INT32_MIN || userConfig->getHMax() != INT32_MIN) {
+  // BOTH limits must be real. This used to accept either one, and then passed the missing one
+  // straight to setMinStep()/setMaxStep(), which translate INT32_MIN into the +/-200M defaults -
+  // so a device with a valid hMin but no hMax was given a 200-million-step ceiling, i.e. none at
+  // all, while still reporting "using configured travel limits".
+  const bool haveBothLimits = (userConfig->getHMin() != INT32_MIN) && (userConfig->getHMax() != INT32_MIN);
+  if (haveBothLimits) {
     SS2K_LOG(POWERTABLE_LOG_TAG, "Using configured travel limits (hMin=%d hMax=%d)", userConfig->getHMin(), userConfig->getHMax());
     rtConfig->setMinStep(this->minWattsFloor(userConfig->getHMin(), userConfig->getHMax()));
     rtConfig->setMaxStep(userConfig->getHMax());
     return;
+  }
+  if (userConfig->getHMin() != INT32_MIN || userConfig->getHMax() != INT32_MIN) {
+    SS2K_LOG(POWERTABLE_LOG_TAG, "Travel limits are half-configured (hMin=%d hMax=%d); treating as uncalibrated.", userConfig->getHMin(), userConfig->getHMax());
   } else if (rtConfig->getHomed()) {
     SS2K_LOG(POWERTABLE_LOG_TAG, "HOMING VALUES NOT FOUND");
   }

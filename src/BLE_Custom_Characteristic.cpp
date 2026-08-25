@@ -730,8 +730,13 @@ void BLE_ss2kCustomCharacteristic::process(std::string rxValue) {
           // Save with explicit version management
           powerTable->_hasBeenLoadedThisSession = true;  // Prevent reload attempts
           powerTable->saveFlag                  = true;
-          // Saved tables all use hMin of Zero and this is not set by the app.
-          userConfig->setHMin(0);
+          // Saved tables all use hMin of Zero and this is not set by the app. Only align hMin
+          // when a maximum is already known: writing hMin alone leaves the limits
+          // half-configured, which is what made a device report configured travel while having
+          // no usable ceiling.
+          if (userConfig->getHMax() != INT32_MIN) {
+            userConfig->setHMin(0);
+          }
         } else {
           // SS2K_LOG(CUSTOM_CHAR_LOG_TAG, "Table row invalid");
           //  Logging causes crashes in ISR
