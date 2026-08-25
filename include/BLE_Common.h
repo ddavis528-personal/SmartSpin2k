@@ -20,6 +20,22 @@
 // #include "BLE_SB20_Service.h"
 #include "Constants.h"
 
+// Maximum simultaneous BLE connections supported by the NimBLE build.
+//
+// esp-nimble-cpp is pulled unpinned from a git branch, and the name of this value has changed
+// more than once upstream: builds green on 2026-08-01 broke on 2026-08-25 with no source change
+// here, because NIMBLE_MAX_CONNECTIONS disappeared and the nimconfig headers were restructured.
+// Resolve it once, preferring what the library itself currently uses.
+#if defined(MYNEWT_VAL_BLE_MAX_CONNECTIONS)
+#define SS2K_MAX_BLE_CONNECTIONS MYNEWT_VAL(BLE_MAX_CONNECTIONS)
+#elif defined(CONFIG_BT_NIMBLE_MAX_CONNECTIONS)
+#define SS2K_MAX_BLE_CONNECTIONS CONFIG_BT_NIMBLE_MAX_CONNECTIONS
+#elif defined(NIMBLE_MAX_CONNECTIONS)
+#define SS2K_MAX_BLE_CONNECTIONS NIMBLE_MAX_CONNECTIONS
+#else
+#error "No NimBLE max-connection macro found; check the esp-nimble-cpp version in lib_deps."
+#endif
+
 // Client size allocated to the queue for receiving characteristic data
 #define NOTIFY_DATA_QUEUE_SIZE   25
 #define NOTIFY_DATA_QUEUE_LENGTH 10

@@ -127,7 +127,7 @@ void BLECommunications() {
 #endif
 
     if (BLEDevice::getAdvertising()) {
-      if ((!BLEDevice::getAdvertising()->isAdvertising()) && (spinBLEServer.connectedClientCount() < (CONFIG_BT_NIMBLE_MAX_CONNECTIONS - NUM_BLE_DEVICES))) {
+      if ((!BLEDevice::getAdvertising()->isAdvertising()) && (spinBLEServer.connectedClientCount() < (SS2K_MAX_BLE_CONNECTIONS - NUM_BLE_DEVICES))) {
         SS2K_LOG(BLE_COMMON_LOG_TAG, "Starting Advertising From Communication Loop. Connected Clients: %d", spinBLEServer.connectedClientCount());
         auto clients = BLEDevice::getConnectedClients();
         // loop through clients and log their addresses

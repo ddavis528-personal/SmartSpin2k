@@ -151,7 +151,7 @@ void SpinBLEServer::updateWheelAndCrankRev() {
 void MyServerCallbacks::onConnect(NimBLEServer* pServer, NimBLEConnInfo& connInfo) {
   SS2K_LOG(BLE_SERVER_LOG_TAG, "Bluetooth Remote Client Connected: %s Connected Clients: %d", connInfo.getAddress().toString().c_str(), pServer->getConnectedCount());
 
-  if (pServer->getConnectedCount() < CONFIG_BT_NIMBLE_MAX_CONNECTIONS - NUM_BLE_DEVICES) {
+  if (pServer->getConnectedCount() < SS2K_MAX_BLE_CONNECTIONS - NUM_BLE_DEVICES) {
     BLEDevice::startAdvertising();
   } else {
     SS2K_LOG(BLE_SERVER_LOG_TAG, "Max Remote Client Connections Reached");
