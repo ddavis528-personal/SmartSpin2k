@@ -60,6 +60,13 @@ CHANGELOG.md
 - **Inert in ERG mode by design** — there the controller moves the knob to hold power flat, so flat power is success, not a fault. ERG keeps its own saturation detector.
 - K is exposed read-only on char 0x31 (×10) for training visibility.
 
+### Manual calibration fallback (chars 0x2F states 6-9, commands on 0x33)
+- Entered automatically after `MANUAL_CALIBRATION_AFTER_FAILURES` (3) consecutive failed homing runs (counted in `ss2k->homingFailureCount`, reset by any success), or on demand via `CAL_CMD_START_MANUAL`.
+- Flow: `MANUAL_CAL_MIN` (rider shifts to bottom, confirms → counter zeroed here) → `MANUAL_CAL_MAX` (rider shifts to top, confirms → validated against `MANUAL_CAL_MIN_GEARS`) → `MANUAL_CAL_VERIFY` (0 → top → mid sweep) → stored + homed.
+- The verify sweep blocks for seconds, so `handleCalibrationCommand()` only sets `manualCalVerifyRequested`; `bleClientTask` runs `runManualCalibrationVerify()`. Never move the motor from a BLE write callback.
+- A sweep that doesn't complete still stores the range and sets `manualCalWarning` (state 9). Losing the only travel measurement the rider managed to give us would be worse.
+- During the prompts, travel opens to ±`MANUAL_CAL_WINDOW_GEARS` around the start and the `getShifterPosition() < 0 && !getHomed()` floor is skipped, so the rider can reach the bottom stop.
+
 ### hMin / hMax sentinels
 - **Before homing:** `hMin = hMax = INT32_MIN` (-2147483648). The device has not yet found its home position.
 - **After homing:** `minStep = 0`, `maxStep = hMax`. Gear range is `0` to `(hMax - hMin) / shiftStep`.

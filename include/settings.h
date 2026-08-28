@@ -281,6 +281,20 @@ constexpr const char* ANY = "any";
 // gears either side of where it stopped so it can still be shifted but cannot run away.
 #define CALIBRATION_ABORT_SAFE_GEARS 4
 
+// --- Manual calibration fallback ---------------------------------------------------------
+// Automatic homing depends on either the bike reporting its own resistance accurately or the
+// motor stalling consistently at the stop. When neither holds, it can fail indefinitely. After
+// this many consecutive failed runs, hand control to the rider instead of retrying forever.
+#define MANUAL_CALIBRATION_AFTER_FAILURES 3
+// While the rider is positioning the knob by hand, travel has to reach the real stops, which
+// sit outside any provisional range. Allow this many gears either side of where manual
+// calibration started - generous, but still bounded.
+#define MANUAL_CAL_WINDOW_GEARS 40
+// A manually-set range narrower than this is a mistake, not a calibration.
+#define MANUAL_CAL_MIN_GEARS 3
+// How long each leg of the confirmation sweep may take before it counts as not completing.
+#define MANUAL_CAL_VERIFY_TIMEOUT_MS 20000
+
 // Provisional gear range used before travel limits are known. Without this the limits are the
 // +/-200M defaults, which is no limit at all: the user can keep upshifting until the knob
 // grinds against its physical stop. A real calibration replaces this with measured limits.

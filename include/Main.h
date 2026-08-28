@@ -38,6 +38,21 @@ enum CalibrationState : uint8_t {
   // recalibrated automatically, because a surprise homing sweep mid-ride is worse than a
   // stale counter.
   CALIBRATION_SLIP_SUSPECTED = 5,
+  // Manual fallback, driven by the rider after automatic homing has failed repeatedly.
+  CALIBRATION_MANUAL_SET_MIN = 6,  // Waiting for the rider to reach the lowest position.
+  CALIBRATION_MANUAL_SET_MAX = 7,  // Waiting for the rider to reach the highest position.
+  CALIBRATION_MANUAL_VERIFY  = 8,  // Sweeping the new range to confirm it is reachable.
+  CALIBRATION_MANUAL_WARNING = 9,  // Finished and usable, but the confirmation sweep fell short.
+};
+
+// Which half of the manual calibration the rider is being asked for.
+enum ManualCalStep : uint8_t { MANUAL_CAL_OFF = 0, MANUAL_CAL_MIN = 1, MANUAL_CAL_MAX = 2, MANUAL_CAL_VERIFY = 3 };
+
+// Commands the app can send on the calibration command characteristic (0x33).
+enum CalibrationCommand : uint8_t {
+  CAL_CMD_CONTINUE      = 1,  // Accept the current knob position for the step in progress.
+  CAL_CMD_CANCEL        = 2,  // Leave manual calibration without storing anything.
+  CAL_CMD_START_MANUAL  = 3,  // Enter manual calibration now, without waiting for failures.
 };
 
 class SS2K {
@@ -80,10 +95,29 @@ class SS2K {
   // True when the last completed homing attempt failed (so the app can show "retrying").
   bool calibrationFailed = false;
 
+  // Consecutive failed automatic homing runs, reset by any success.
+  uint8_t homingFailureCount = 0;
+  // Which manual step is awaiting the rider, if any.
+  ManualCalStep manualCalStep = MANUAL_CAL_OFF;
+  // Set when manual calibration finished but the confirmation sweep did not complete. The
+  // limits are still stored and used - this only tells the rider to treat them with suspicion.
+  bool manualCalWarning = false;
+  // Set from the BLE callback, acted on by the client task: the confirmation sweep moves the
+  // motor for several seconds and must not run inside a BLE write handler.
+  volatile bool manualCalVerifyRequested = false;
+  // Rider-chosen top of travel, relative to the zero set at the bottom.
+  int32_t manualCalMaxPosition = 0;
+
   // Reports the current calibration status for the app. Derived, never stored.
   uint8_t getCalibrationState();
   // Stops any in-progress calibration and prevents the retry loop from restarting it.
   void abortCalibration();
+  // Hands calibration to the rider after automatic homing has failed too many times.
+  void beginManualCalibration();
+  // Handles a command from the app (see CalibrationCommand).
+  void handleCalibrationCommand(uint8_t command);
+  // Sweeps the rider-defined range to confirm it is reachable, then stores it. Blocking.
+  void runManualCalibrationVerify();
 
   static void maintenanceLoop(void *pvParameters);
   static void ARDUINO_ISR_ATTR handleUpShift();

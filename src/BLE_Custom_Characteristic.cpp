@@ -923,6 +923,19 @@ void BLE_ss2kCustomCharacteristic::process(std::string rxValue) {
       }
       break;
 
+    case BLE_calibrationCommand:  // 0x33
+      LOG_BUF_APPEND("<-calibrationCommand");
+      // Write-only. The rider's answers during manual calibration: confirm the current knob
+      // position for the step in progress, cancel, or start manual calibration outright.
+      // handleCalibrationCommand() only sets state - the confirmation sweep it schedules runs
+      // in the BLE client task, because moving the motor here would block the BLE stack.
+      if (rxValue[0] == cc_write && rxValue.length() >= 3) {
+        returnValue[0] = cc_success;
+        ss2k->handleCalibrationCommand((uint8_t)rxValue[2]);
+        LOG_BUF_APPEND("(%d)", (uint8_t)rxValue[2]);
+      }
+      break;
+
     default:
       LOG_BUF_APPEND("<-Unknown Characteristic");
       returnValue[0] = cc_error;

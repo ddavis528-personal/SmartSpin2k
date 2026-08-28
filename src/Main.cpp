@@ -558,7 +558,135 @@ uint8_t SS2K::getCalibrationState() {
   if (shiftResponse.getSlipSuspected()) {
     return CALIBRATION_SLIP_SUSPECTED;
   }
+  if (ss2k->manualCalWarning) {
+    return CALIBRATION_MANUAL_WARNING;
+  }
   return CALIBRATION_IDLE;
+}
+
+void SS2K::beginManualCalibration() {
+  SS2K_LOG(MAIN_LOG_TAG, "Handing calibration to the rider after %d failed automatic runs.", ss2k->homingFailureCount);
+  spinBLEServer.spinDownFlag      = 0;  // stop retrying; the rider is driving now
+  ss2k->calibrationAbortRequested = false;
+  ss2k->calibrationAborted        = false;
+  ss2k->calibrationFailed         = false;
+  ss2k->manualCalWarning          = false;
+  ss2k->manualCalStep             = MANUAL_CAL_MIN;
+  rtConfig->setHomed(false);
+
+  // The rider has to be able to reach the real stops, which by definition sit outside any
+  // provisional range. Open the window wide around where we are now - bounded, but generous
+  // enough that the limits never become the thing preventing calibration.
+  const int32_t here   = ss2k->getCurrentPosition();
+  const int32_t window = (int32_t)userConfig->getShiftStep() * MANUAL_CAL_WINDOW_GEARS;
+  rtConfig->setMinStep(here - window);
+  rtConfig->setMaxStep(here + window);
+  SS2K_LOG(MAIN_LOG_TAG, "Manual calibration: shift to the LOWEST resistance, then confirm. Travel opened to %d..%d", here - window, here + window);
+}
+
+void SS2K::handleCalibrationCommand(uint8_t command) {
+  switch (command) {
+    case CAL_CMD_START_MANUAL:
+      ss2k->beginManualCalibration();
+      break;
+
+    case CAL_CMD_CANCEL:
+      if (ss2k->manualCalStep != MANUAL_CAL_OFF) {
+        SS2K_LOG(MAIN_LOG_TAG, "Manual calibration cancelled by the rider.");
+        ss2k->manualCalStep = MANUAL_CAL_OFF;
+        ss2k->abortCalibration();  // restores previous limits or fences travel
+      }
+      break;
+
+    case CAL_CMD_CONTINUE:
+      if (ss2k->manualCalStep == MANUAL_CAL_MIN) {
+        // Wherever the knob sits now becomes zero, exactly as automatic homing does at the
+        // bottom of its sweep. Everything above is measured from here.
+        stepper->setCurrentPosition(0);
+        ss2k->setCurrentPosition(0);
+        ss2k->setTargetPosition(0);
+        rtConfig->setControlTargetPosition(0);
+        rtConfig->setShifterPosition(0);
+        ss2k->lastShifterPosition = 0;
+        const int32_t window      = (int32_t)userConfig->getShiftStep() * MANUAL_CAL_WINDOW_GEARS;
+        rtConfig->setMinStep(0);
+        rtConfig->setMaxStep(window);
+        ss2k->manualCalStep = MANUAL_CAL_MAX;
+        SS2K_LOG(MAIN_LOG_TAG, "Manual calibration: bottom set. Now shift to the HIGHEST resistance, then confirm.");
+      } else if (ss2k->manualCalStep == MANUAL_CAL_MAX) {
+        const int32_t top     = ss2k->getCurrentPosition();
+        const int32_t minimum = (int32_t)userConfig->getShiftStep() * MANUAL_CAL_MIN_GEARS;
+        if (top < minimum) {
+          // Not a calibration - stay on this step so the rider can keep going up and retry.
+          SS2K_LOG(MAIN_LOG_TAG, "Manual calibration: top of %d is less than %d gears above the bottom. Shift higher and confirm again.", top, MANUAL_CAL_MIN_GEARS);
+          break;
+        }
+        ss2k->manualCalMaxPosition     = top;
+        ss2k->manualCalStep            = MANUAL_CAL_VERIFY;
+        ss2k->manualCalVerifyRequested = true;  // the sweep itself runs outside this callback
+        SS2K_LOG(MAIN_LOG_TAG, "Manual calibration: top set at %d. Confirming the range is reachable.", top);
+      }
+      break;
+
+    default:
+      break;
+  }
+}
+
+void SS2K::runManualCalibrationVerify() {
+  ss2k->manualCalVerifyRequested = false;
+  ss2k->isHoming                 = true;  // keep moveStepper and the shift-response monitor out of the way
+
+  const int32_t top = ss2k->manualCalMaxPosition;
+  SS2K_LOG(MAIN_LOG_TAG, "Manual calibration: sweeping 0 -> %d -> 0 to confirm.", top);
+
+  // Drive each leg and wait for arrival. Falling short means the motor could not traverse what
+  // the rider marked out - worth flagging, but not worth discarding their measurement over.
+  bool reachedBoth = true;
+  const int32_t legs[3] = {0, top, top / 2};
+  for (int leg = 0; leg < 3 && stepper; leg++) {
+    stepper->moveTo(legs[leg]);
+    const unsigned long legStart = millis();
+    while (stepper->getCurrentPosition() != legs[leg]) {
+      if (millis() - legStart > MANUAL_CAL_VERIFY_TIMEOUT_MS) {
+        SS2K_LOG(MAIN_LOG_TAG, "Manual calibration: leg to %d did not complete (stopped at %d).", legs[leg], (int)stepper->getCurrentPosition());
+        reachedBoth = false;
+        break;
+      }
+      if (ss2k->calibrationAbortRequested) {
+        SS2K_LOG(MAIN_LOG_TAG, "Manual calibration: confirmation sweep aborted.");
+        reachedBoth = false;
+        break;
+      }
+      delay(20);
+    }
+    ss2k->setCurrentPosition(stepper->getCurrentPosition());
+    if (!reachedBoth) break;
+  }
+
+  // Store the rider's range either way. A failed sweep downgrades confidence, it does not
+  // discard the one piece of information we finally have.
+  userConfig->setHMin(0);
+  userConfig->setHMax(top);
+  rtConfig->setMinStep(0);
+  rtConfig->setMaxStep(top);
+  rtConfig->setHomed(true);
+  ss2k->manualCalStep    = MANUAL_CAL_OFF;
+  ss2k->manualCalWarning = !reachedBoth;
+  ss2k->homingFailureCount = 0;
+  ss2k->calibrationFailed  = false;
+  shiftResponse.clearSlipSuspicion();
+
+  const int middleGear = (userConfig->getShiftStep() > 0) ? (int)(top / userConfig->getShiftStep() / 2) : 0;
+  rtConfig->setShifterPosition(middleGear);
+  ss2k->lastShifterPosition = middleGear;
+  ss2k->setTargetPosition(middleGear * userConfig->getShiftStep());
+  rtConfig->setControlTargetPosition(ss2k->getTargetPosition());
+
+  ss2k->isHoming = false;
+  ss2k->saveFlag = true;
+  SS2K_LOG(MAIN_LOG_TAG, "Manual calibration complete%s. Range 0..%d (%d gears).", reachedBoth ? "" : " WITH WARNING - confirmation sweep fell short", top,
+           userConfig->getShiftStep() > 0 ? (int)(top / userConfig->getShiftStep()) : 0);
 }
 
 void SS2K::abortCalibration() {
@@ -648,7 +776,9 @@ void SS2K::handleShiftButtons() {
   // homing completes.  Before homing, minStep is at its default (-200M), so gear -1 would
   // command the motor 1200 steps in the decreasing direction — which physically drives toward
   // max resistance.  Floor the gear at 0 until we have a calibrated home position.
-  if (rtConfig->getShifterPosition() < 0 && !rtConfig->getHomed()) {
+  // Exception: while the rider is being asked to find the bottom of travel by hand, going below
+  // the current zero is the entire point. moveStepper still clamps to the manual window.
+  if (rtConfig->getShifterPosition() < 0 && !rtConfig->getHomed() && ss2k->manualCalStep != MANUAL_CAL_MIN) {
     rtConfig->setShifterPosition(0);
   }
 }

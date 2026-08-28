@@ -221,6 +221,12 @@ void bleClientTask(void* pvParameters) {
     // Spin Down process for the Server. It's here because it needs to be non-blocking for the maintenance loop.
     // Checking for cadence also so that we don't home when nobody is around.
     static int cadenceCount = 0;
+    // The manual-calibration confirmation sweep blocks for several seconds, so it runs here
+    // rather than in the BLE write callback that requested it.
+    if (ss2k->manualCalVerifyRequested) {
+      ss2k->runManualCalibrationVerify();
+    }
+
     if (spinBLEServer.spinDownFlag) {
       if (rtConfig->cad.getValue() > 10 && rtConfig->cad.getValue() < 200) {  // Cadence above 10 RPM
         cadenceCount++;                                                       // We need to check multiple times to ensure it's not a blip
@@ -255,6 +261,7 @@ void bleClientTask(void* pvParameters) {
         if (rtConfig->getHomed()) {
           spinBLEServer.spinDownFlag = 0;
           ss2k->calibrationFailed    = false;
+          ss2k->homingFailureCount   = 0;
           // A fresh calibration re-syncs the counter with the knob, which is exactly the cure
           // for a suspected slip.
           shiftResponse.clearSlipSuspicion();
@@ -264,7 +271,14 @@ void bleClientTask(void* pvParameters) {
           ss2k->abortCalibration();
         } else {
           ss2k->calibrationFailed = true;
-          SS2K_LOG(BLE_CLIENT_LOG_TAG, "Homing failed; keeping spinDownFlag set to retry.");
+          ss2k->homingFailureCount++;
+          if (ss2k->homingFailureCount >= MANUAL_CALIBRATION_AFTER_FAILURES) {
+            // Retrying an algorithm that has failed this many times will not start working on
+            // the next attempt. Ask the rider to mark the ends of travel instead.
+            ss2k->beginManualCalibration();
+          } else {
+            SS2K_LOG(BLE_CLIENT_LOG_TAG, "Homing failed (%d/%d); keeping spinDownFlag set to retry.", ss2k->homingFailureCount, MANUAL_CALIBRATION_AFTER_FAILURES);
+          }
         }
       }
     }
