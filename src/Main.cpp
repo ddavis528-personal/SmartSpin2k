@@ -544,6 +544,20 @@ void SS2K::restartWifi() {
 }
 
 uint8_t SS2K::getCalibrationState() {
+  // Manual calibration is checked first and deliberately outranks isHoming: the confirmation
+  // sweep sets isHoming too, and reporting a generic "calibrating" there would hide which step
+  // the rider is on. Without this the whole manual flow ran but reported CALIBRATION_IDLE, so
+  // the app showed an ordinary uncalibrated gear display and the prompts never appeared.
+  switch (ss2k->manualCalStep) {
+    case MANUAL_CAL_MIN:
+      return CALIBRATION_MANUAL_SET_MIN;
+    case MANUAL_CAL_MAX:
+      return CALIBRATION_MANUAL_SET_MAX;
+    case MANUAL_CAL_VERIFY:
+      return CALIBRATION_MANUAL_VERIFY;
+    default:
+      break;
+  }
   if (ss2k->isHoming) {
     return CALIBRATION_ACTIVE;
   }

@@ -10,3 +10,14 @@ repos:
           - license_header.txt
           - --comment-style
           - /*| *| */
+  # Firmware and app agree on calibration state numbers only by convention. A state can be
+  # defined, entered and handled while getCalibrationState() never returns it, which is exactly
+  # how the manual calibration flow shipped reporting "idle". Catch that here.
+  - repo: local
+    hooks:
+      - id: calibration-states-reachable
+        name: calibration states are reachable
+        entry: python3 tools/check_calibration_states.py
+        language: system
+        pass_filenames: false
+        files: ^(include/Main\.h|src/Main\.cpp)$
