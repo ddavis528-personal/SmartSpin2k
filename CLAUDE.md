@@ -61,6 +61,7 @@ CHANGELOG.md
 - K is exposed read-only on char 0x31 (×10) for training visibility.
 
 ### Manual calibration fallback (chars 0x2F states 6-9, commands on 0x33)
+- **Verified working on hardware 2026-08-28.** This is currently the only path that successfully calibrates the reporter's bike; automatic homing still fails all three attempts on it (root cause still open — see backlog).
 - Entered automatically after `MANUAL_CALIBRATION_AFTER_FAILURES` (3) consecutive failed homing runs (counted in `ss2k->homingFailureCount`, reset by any success), or on demand via `CAL_CMD_START_MANUAL`.
 - Flow: `MANUAL_CAL_MIN` (rider shifts to bottom, confirms → counter zeroed here) → `MANUAL_CAL_MAX` (rider shifts to top, confirms → validated against `MANUAL_CAL_MIN_GEARS`) → `MANUAL_CAL_VERIFY` (0 → top → mid sweep) → stored + homed.
 - The verify sweep blocks for seconds, so `handleCalibrationCommand()` only sets `manualCalVerifyRequested`; `bleClientTask` runs `runManualCalibrationVerify()`. Never move the motor from a BLE write callback.
@@ -94,6 +95,19 @@ CHANGELOG.md
 ---
 
 ## Known Issues / Next Steps
+
+### Open: why automatic calibration fails on at least one bike
+Manual calibration now works and is the practical workaround, but automatic homing still fails
+every attempt on that hardware. Both paths fail (a failed FTMS run falls through to StallGuard).
+Leading candidates, from the code rather than from device logs:
+- The FTMS sweep requires reported resistance to *exactly equal* the bike's advertised max; if
+  the knob can't physically drive the bike that far, that can never be satisfied.
+- Its plateau fallback resets on *any* change in reported resistance, so jitter defeats it and
+  the 30 s timeout fails the sweep instead.
+- StallGuard homing runs at 80% power and needs 2 of 7 taps within 150 steps; a knob that gets
+  heavy near max can stall against load at an inconsistent position.
+Decisive next data: the `FTMS Homing sweep exit: target=... reached=... iter=... travelΔ=...`
+log line during a failing run, over BLE logging or the device web page.
 
 ### Post-test-ride backlog (2026-07-18 ride on fixed builds; address in priority order)
 Test-ride verdict: no runaway; SIM behavior gradual and predictable. Remaining items:
